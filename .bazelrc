@@ -1,0 +1,11 @@
+common --enable_bzlmod
+common --lockfile_mode=error
+common --repo_contents_cache=
+
+build:linux_amd64 --platforms=//fips/platforms:linux_amd64
+build:linux_arm64 --platforms=//fips/platforms:linux_arm64
+
+# FIPS build actions are intentionally verbose so the exact configure flags
+# remain available in CI logs and provenance records.
+build --show_timestamps
+build --verbose_failures

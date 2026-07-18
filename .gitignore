@@ -1,0 +1,5 @@
+.build-input/
+.build-output/
+.local/
+bazel-*
+erl_crash.dump

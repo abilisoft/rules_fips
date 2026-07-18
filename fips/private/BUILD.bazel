@@ -1,0 +1,3 @@
+package(default_visibility = ["//fips:__subpackages__"])
+
+exports_files(["tooling.bzl"])

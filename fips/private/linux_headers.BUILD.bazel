@@ -1,0 +1,19 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "srcs",
+    srcs = glob([
+        "COPYING",
+        "LICENSES/**",
+        "Makefile",
+        "arch/arm64/Makefile*",
+        "arch/arm64/include/**",
+        "arch/x86/Makefile*",
+        "arch/x86/entry/syscalls/**",
+        "arch/x86/include/**",
+        "include/**",
+        "scripts/**",
+    ]),
+)
+
+exports_files(["Makefile"])

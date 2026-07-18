@@ -1,0 +1,15 @@
+load("//fips:defs.bzl", "fips_elixir_distribution")
+
+package(default_visibility = ["//visibility:public"])
+
+fips_elixir_distribution(
+    name = "elixir_boringcrypto_fips",
+    backend = "boringcrypto",
+    tags = ["manual"],
+)
+
+fips_elixir_distribution(
+    name = "elixir_openssl_fips",
+    backend = "openssl",
+    tags = ["manual"],
+)

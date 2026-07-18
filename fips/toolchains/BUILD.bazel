@@ -1,0 +1,223 @@
+load("//fips:musl.bzl", "musl_sysroot")
+load("//fips:ninja.bzl", "policy_ninja")
+load("//fips:libcxx.bzl", "static_libcxx_sysroot")
+load("//fips:compiler_rt.bzl", "compiler_rt_builtins")
+load(":clang_runtime.bzl", "clang_runtime_bundle")
+load(
+    ":defs.bzl",
+    "fips_bootstrap_platform_toolchain",
+    "fips_platform_toolchain",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+clang_runtime_bundle(
+    name = "clang_amd64",
+    arch = "amd64",
+    clang = "@fips_clang_amd64//sysroot:sysroot",
+    libtinfo_deb = "@libtinfo5_amd64//file",
+)
+
+clang_runtime_bundle(
+    name = "clang_arm64",
+    arch = "arm64",
+    clang = "@fips_clang_arm64//sysroot:sysroot",
+    libtinfo_deb = "@libtinfo5_arm64//file",
+)
+
+fips_bootstrap_platform_toolchain(
+    name = "bootstrap_linux_amd64_impl",
+    arch = "amd64",
+    clang = ":clang_amd64",
+    cmake = "@fips_cmake_amd64//sysroot:sysroot",
+    glibc_sysroot = "@linux_amd64_sysroot//:sysroot",
+    glibc_sysroot_marker = "@linux_amd64_sysroot//:usr/include/stdio.h",
+    gnu_triplet = "x86_64-linux-gnu",
+    musl_triplet = "x86_64-linux-musl",
+)
+
+fips_bootstrap_platform_toolchain(
+    name = "bootstrap_linux_arm64_impl",
+    arch = "arm64",
+    clang = ":clang_arm64",
+    cmake = "@fips_cmake_arm64//sysroot:sysroot",
+    glibc_sysroot = "@linux_arm64_sysroot//:sysroot",
+    glibc_sysroot_marker = "@linux_arm64_sysroot//:usr/include/stdio.h",
+    gnu_triplet = "aarch64-linux-gnu",
+    musl_triplet = "aarch64-linux-musl",
+)
+
+fips_bootstrap_platform_toolchain(
+    name = "bootstrap_linux_arm64_cross_impl",
+    arch = "arm64",
+    clang = ":clang_amd64",
+    cmake = "@fips_cmake_amd64//sysroot:sysroot",
+    glibc_sysroot = "@linux_arm64_sysroot//:sysroot",
+    glibc_sysroot_marker = "@linux_arm64_sysroot//:usr/include/stdio.h",
+    gnu_triplet = "aarch64-linux-gnu",
+    musl_triplet = "aarch64-linux-musl",
+)
+
+toolchain(
+    name = "bootstrap_linux_amd64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":bootstrap_linux_amd64_impl",
+    toolchain_type = "//fips:bootstrap_toolchain_type",
+)
+
+toolchain(
+    name = "bootstrap_linux_arm64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":bootstrap_linux_arm64_impl",
+    toolchain_type = "//fips:bootstrap_toolchain_type",
+)
+
+toolchain(
+    name = "bootstrap_linux_arm64_cross_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":bootstrap_linux_arm64_cross_impl",
+    toolchain_type = "//fips:bootstrap_toolchain_type",
+)
+
+compiler_rt_builtins(
+    name = "compiler_rt_amd64",
+)
+
+compiler_rt_builtins(
+    name = "compiler_rt_arm64",
+)
+
+musl_sysroot(
+    name = "musl_amd64",
+    compiler_rt = ":compiler_rt_amd64",
+)
+
+musl_sysroot(
+    name = "musl_arm64",
+    compiler_rt = ":compiler_rt_arm64",
+)
+
+static_libcxx_sysroot(
+    name = "musl_libcxx_amd64",
+    musl = ":musl_amd64",
+)
+
+static_libcxx_sysroot(
+    name = "musl_libcxx_arm64",
+    musl = ":musl_arm64",
+)
+
+policy_ninja(
+    name = "policy_ninja",
+)
+
+fips_platform_toolchain(
+    name = "linux_amd64_impl",
+    arch = "amd64",
+    boringssl_processor = "x86_64",
+    build_compiler_rt = ":compiler_rt_amd64",
+    build_glibc_sysroot = "@linux_amd64_sysroot//:sysroot",
+    build_glibc_sysroot_marker = "@linux_amd64_sysroot//:usr/include/stdio.h",
+    build_triplet = "x86_64-linux-musl",
+    clang = ":clang_amd64",
+    cmake = "@fips_cmake_amd64//sysroot:sysroot",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    gnu_triplet = "x86_64-linux-gnu",
+    musl = ":musl_libcxx_amd64",
+    openssl_target = "linux-x86_64",
+)
+
+fips_platform_toolchain(
+    name = "linux_arm64_impl",
+    arch = "arm64",
+    boringssl_processor = "aarch64",
+    build_compiler_rt = ":compiler_rt_arm64",
+    build_glibc_sysroot = "@linux_arm64_sysroot//:sysroot",
+    build_glibc_sysroot_marker = "@linux_arm64_sysroot//:usr/include/stdio.h",
+    build_triplet = "aarch64-linux-musl",
+    clang = ":clang_arm64",
+    cmake = "@fips_cmake_arm64//sysroot:sysroot",
+    go = "@fips_go_arm64//sysroot:sysroot",
+    gnu_triplet = "aarch64-linux-gnu",
+    musl = ":musl_libcxx_arm64",
+    openssl_target = "linux-aarch64",
+)
+
+fips_platform_toolchain(
+    name = "linux_arm64_cross_impl",
+    arch = "arm64",
+    boringssl_processor = "aarch64",
+    build_compiler_rt = ":compiler_rt_amd64",
+    build_glibc_sysroot = "@linux_amd64_sysroot//:sysroot",
+    build_glibc_sysroot_marker = "@linux_amd64_sysroot//:usr/include/stdio.h",
+    build_triplet = "x86_64-linux-gnu",
+    clang = ":clang_amd64",
+    cmake = "@fips_cmake_amd64//sysroot:sysroot",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    gnu_triplet = "aarch64-linux-gnu",
+    musl = ":musl_libcxx_arm64",
+    openssl_target = "linux-aarch64",
+)
+
+toolchain(
+    name = "linux_amd64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_amd64_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_cross_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_cross_impl",
+    toolchain_type = "//fips:toolchain_type",
+)

@@ -1,0 +1,86 @@
+ARG UBUNTU_VERSION=22.04
+FROM ubuntu:${UBUNTU_VERSION} AS build
+
+ARG BUILDARCH
+ARG TARGETARCH
+ARG DEBIAN_FRONTEND=noninteractive
+ARG OTP_VERSION=OTP-29.0.3
+ARG ELIXIR_VERSION=v1.20.2
+ARG BORINGSSL_COMMIT=a430310d6563c0734ddafca7731570dfb683dc19
+ARG BORINGSSL_CMVP_TARBALL_SHA256=2d5339b756dbf1ceb4fdc4b1c8f19e32ded055292dc57827a6592f15ca9d359f
+
+ENV OTP_VERSION=${OTP_VERSION} \
+    ELIXIR_VERSION=${ELIXIR_VERSION} \
+    BORINGSSL_COMMIT=${BORINGSSL_COMMIT} \
+    BORINGSSL_CMVP_TARBALL_SHA256=${BORINGSSL_CMVP_TARBALL_SHA256}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        autoconf \
+        build-essential \
+        ca-certificates \
+        clang \
+        cmake \
+        curl \
+        git \
+        golang-go \
+        libncurses-dev \
+        m4 \
+        ninja-build \
+        perl \
+        pkg-config \
+        python3 \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+RUN git init boringssl \
+    && git -C boringssl remote add origin https://boringssl.googlesource.com/boringssl \
+    && git -C boringssl fetch --depth 1 origin "${BORINGSSL_COMMIT}" \
+    && git -C boringssl checkout --detach FETCH_HEAD \
+    && test "$(git -C boringssl rev-parse HEAD)" = "${BORINGSSL_COMMIT}" \
+    && git clone --depth 1 --branch "${OTP_VERSION}" \
+        https://github.com/erlang/otp.git otp \
+    && git clone --depth 1 --branch "${ELIXIR_VERSION}" \
+        https://github.com/elixir-lang/elixir.git elixir
+
+COPY runtime/boring_fips_check.c /experiment/runtime/boring_fips_check.c
+COPY scripts/container-boringssl.sh /experiment/scripts/container-boringssl.sh
+
+RUN --mount=type=cache,id=boringssl-${TARGETARCH},target=/build/boringssl/build \
+    BORINGSSL_BUILD_ARCH="${BUILDARCH}" \
+    BORINGSSL_TARGET_ARCH="${TARGETARCH}" \
+    bash /experiment/scripts/container-boringssl.sh
+
+COPY compat/boringssl /experiment/compat/boringssl
+COPY scripts/container-otp-boringssl.sh /experiment/scripts/container-otp-boringssl.sh
+
+RUN bash /experiment/scripts/container-otp-boringssl.sh
+
+COPY runtime/fips_boot_boringssl.erl runtime/elixir-boringssl /experiment/runtime/
+COPY scripts/container-elixir-boringssl.sh /experiment/scripts/container-elixir-boringssl.sh
+
+RUN bash /experiment/scripts/container-elixir-boringssl.sh
+
+FROM ubuntu:${UBUNTU_VERSION} AS runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libncurses6 \
+        libstdc++6 \
+        libtinfo6 \
+        zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/fips-elixir /opt/fips-elixir
+COPY runtime/elixir-boringssl /opt/fips-elixir/bin/elixir
+COPY scripts/verify-boringssl.sh /usr/local/bin/verify-fips
+
+ENV FIPS_ELIXIR_ROOT=/opt/fips-elixir \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PATH=/opt/fips-elixir/bin:${PATH}
+
+ENTRYPOINT ["/opt/fips-elixir/bin/elixir"]
+CMD ["--version"]
