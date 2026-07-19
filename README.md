@@ -1,178 +1,166 @@
-# `rules_fips`: static Elixir/OTP with BoringCrypto
+# rules_fips
 
-This experiment is building a relocatable Elixir 1.20.2 and Erlang/OTP 29.0.3
-distribution whose native ELF files are fully static musl executables. OTP's
-`crypto` NIF is built into BEAM and linked to the exact BoringCrypto module
-identified by FIPS 140-3 certificate [#5296][cmvp-5296]:
+`rules_fips` builds relocatable, musl-based Erlang/OTP 29.0.3 and Elixir
+1.20.2 distributions with FIPS mode enforced at startup. OpenSSL is the
+default backend; a fully static BoringSSL/BoringCrypto backend is optional.
 
-```text
-Elixir -> OTP crypto (static NIF) -> BoringCrypto 2023042800 (static) -> musl
-```
+The supported target matrix is Linux `amd64` and Linux `arm64`:
 
-The target is intended to support Linux `amd64` and `arm64`. It contains no shared
-objects, ELF interpreter, `DT_NEEDED` entry, glibc dependency, Ubuntu runtime,
-or separately loaded crypto provider.
+| Backend | Crypto linkage | Validated module |
+| --- | --- | --- |
+| OpenSSL, default | static `libcrypto`/`libssl`; dynamic `fips.so` provider | OpenSSL FIPS Provider 3.1.2, CMVP #4985 |
+| BoringSSL, optional | fully static BoringCrypto | BoringCrypto 2023042800, CMVP #5296 |
 
-## Status
-
-This is a private experimental snapshot, not a released `rules_fips` API.
-The complete `amd64` distribution and the standalone `arm64` BoringCrypto
-layer have been built and verified. The complete `arm64` OTP/Elixir
-distribution is still in progress.
-
-The current custom rules use `ctx.actions.run_shell` to orchestrate upstream
-foreign builds. They therefore do not yet meet the project's intended
-pure-Starlark/idiomatic-Bazel design standard. Upstream OTP, Elixir, musl, and
-LLVM still use their own shell/configure/make build systems; the next rules
-iteration must expose those tools and build stages honestly rather than hide
-the orchestration in monolithic embedded shell actions.
-
-The root Dockerfiles
-and `scripts/container-*` files are retained only as earlier comparison
-prototypes; they are not inputs to `rules_fips` and do not define its runtime
-environment.
+OpenSSL's provider remains a shared object intentionally. The validated
+OpenSSL module boundary is the provider, so replacing it with a static object
+would no longer be the module described by certificate #4985. OTP's crypto
+NIF and the OpenSSL 3.5.7 core are still statically linked.
 
 ## Build
 
-Use Bazelisk or Bazel 9.2.0; `.bazelversion` pins the version:
+The module API defaults to OpenSSL:
 
-```sh
-bazel --output_user_root="$PWD/.local/bazel-output" \
-  build --repo_contents_cache= --config=linux_amd64 \
-  //examples:elixir_boringcrypto_fips
+```starlark
+load("@rules_fips//fips:defs.bzl", "fips_elixir_distribution")
 
-bazel --output_user_root="$PWD/.local/bazel-output" \
-  build --repo_contents_cache= --config=linux_arm64 \
-  //examples:elixir_boringcrypto_fips
+fips_elixir_distribution(
+    name = "elixir_fips",
+)
 ```
 
-To pin the execution userspace as well, use the wrapper. It selects the
-matching architecture from the host, runs in the immutable multi-platform
-`python:3.14.5-trixie@sha256:11591407222400cafc1b2bd03fe09a90988f091fc9ddff4a901f80ceb02b78b3`
-image, and downloads the matching official Bazel binary only after checking
-its architecture-specific SHA-256:
+Use `backend = "boringssl_fips_static"` to select BoringSSL. The repository
+contains complete examples:
 
 ```sh
-./scripts/hermetic-bazel.sh
+bazel --config=linux_amd64 build //examples:elixir_openssl_fips
+bazel --config=linux_amd64 build //examples:elixir_boringssl_fips_static
 
-./scripts/hermetic-bazel.sh \
-  build --repo_contents_cache= --config=linux_arm64 \
-  //examples:elixir_boringcrypto_fips
+bazel --config=linux_arm64 build //examples:elixir_openssl_fips
+bazel --config=linux_arm64 build //examples:elixir_boringssl_fips_static
 ```
 
-The outputs are:
+Each target produces a deterministic archive and JSON provenance manifest:
 
 ```text
-bazel-bin/examples/elixir_boringcrypto_fips.tar.gz
-bazel-bin/examples/elixir_boringcrypto_fips.json
+bazel-bin/examples/elixir_openssl_fips.tar.gz
+bazel-bin/examples/elixir_openssl_fips.json
 ```
 
-The second command cross-builds on `amd64` and selects a native toolchain on
-an `arm64` execution host. On `amd64`, the rule follows OTP's documented
-cross-build procedure: it first builds a same-release native bootstrap Erlang,
-uses that to compile target-independent OTP and Elixir bytecode, and uses
-Clang's `aarch64-linux-musl` target for native code. The final target-runtime
-check needs AArch64 binfmt/QEMU on an `amd64` builder. That emulator is a
-build-time verification requirement only; it is not packaged or required on
-an ARM deployment host.
-
-Extract the tarball at `/`, or relocate `opt/fips-elixir` as a unit. The
-launcher resolves its installation root and verifies FIPS before starting user
-code:
+Extract the archive anywhere and keep `opt/fips-elixir` together. The static
+launcher resolves that directory at runtime; it does not require `/bin/sh` or
+a fixed installation prefix:
 
 ```sh
-/opt/fips-elixir/bin/boring-fips-check
-/opt/fips-elixir/bin/elixir --version
-/opt/fips-elixir/bin/elixir -e \
-  'IO.inspect({:crypto.info_fips(), :crypto.info()})'
+tar -xzf bazel-bin/examples/elixir_openssl_fips.tar.gz
+./opt/fips-elixir/bin/elixir -e \
+  'IO.inspect({System.version(), :crypto.info_fips(), :crypto.info()[:link_type]})'
 ```
 
-## What “enforced” means
+## FIPS enforcement
 
-The build uses OTP's upstream `--enable-fips`, `--enable-static-nifs`,
-`--enable-static-drivers`, and `--disable-dynamic-ssl-lib` controls. The
-launcher always passes `-crypto fips_mode true` and runs a boot guard before
-user code. The build and boot checks require all of the following:
+The build uses OTP's upstream configuration controls, including
+`--enable-fips`, `--enable-static-nifs=yes`, `--enable-static-drivers=yes`,
+`--disable-dynamic-ssl-lib`, and release optimization. It does not enable a
+debug runtime.
 
-- `crypto:info_fips()` is `enabled`;
-- OTP reports `link_type := static` and a linked BoringSSL version;
-- `crypto:enable_fips_mode(false)` returns `false` and mode remains enabled;
-- an unapproved MD5 request is rejected while SHA-256 succeeds;
-- BoringCrypto's service indicator reports approved status for SHA-256 and
-  non-approved status for MD5;
-- every packaged ELF has no interpreter and no dynamic dependencies.
+The shell-free launcher always starts BEAM with `-crypto fips_mode true` and
+runs an Erlang boot guard before user code. Build-time validators also execute
+the target runtime and require:
 
-Neither the OTP nor BoringSSL source tree is patched. OTP does not officially
-target BoringSSL's deliberately smaller OpenSSL-compatible API, so the build
-does use consumer-side compatibility headers under `compat/boringssl`. They
-mark unsupported algorithms unavailable and adapt omitted metadata/lifecycle
-APIs; they do not modify BoringCrypto or add cryptographic implementations.
+- `crypto:info_fips()` to return `enabled`;
+- OTP to report `link_type := static`;
+- the selected validated module and version to be active;
+- OpenSSL provider installation and every provider KAT to pass; or
+- BoringCrypto's FIPS mode to be active and attempts to disable it to fail.
 
-## Pins, hermeticity, and upgrades
+Packaging audits every ELF file. BoringSSL output may not contain an ELF
+interpreter or `DT_NEEDED` dependency. The OpenSSL output may depend only on
+the packaged musl loader/libc and its packaged FIPS provider.
 
-All fetched sources and tools use HTTPS plus exact SHA-256 values. Build
-actions receive declared toolchain/source inputs, clear the default shell
-environment, disable Go module/toolchain downloads, and request network
-blocking. Archives are created with stable ordering, timestamps, and numeric
-ownership. The important default identities are:
+Neither OTP nor BoringSSL is patched. OTP expects OpenSSL's broader API, so the
+BoringSSL variant supplies consumer-side compatibility declarations under
+`compat/boringssl`. Missing algorithms remain unavailable; the overlay does
+not modify BoringCrypto or implement cryptography.
 
-| Component | Pin |
+## Bazel and hermeticity
+
+The foreign projects are driven by `rules_foreign_cc` 0.15.1:
+
+- BoringSSL uses its upstream CMake build;
+- OpenSSL, OTP, and Elixir use upstream Configure/Make entry points;
+- repository rules and build definitions are Starlark;
+- repository-owned staging, validation, packaging, and launchers are static Go
+  tools; and
+- the repository contains no shell scripts and no `ctx.actions.run_shell`.
+
+`rules_foreign_cc` exposes `postfix_script` as a string API. Three one-line
+hooks invoke the declared static staging tool for outputs that the upstream
+install layouts do not expose directly. They contain no shell file operations
+or build logic. BoringSSL's native install target cannot be used selectively:
+it also installs and therefore forces a link of the unused `bssl` C++ CLI.
+
+All source archives and tools have SHA-256 integrity pins. Build actions use
+declared Clang, musl sysroots, CMake, Ninja, Go, GNU Make, Perl, BusyBox, and
+runtime-library inputs; downloads during actions are disabled and actions
+request network blocking.
+
+`rules_foreign_cc` itself executes generated scripts with `/bin/bash`. The
+default remote build closes that outer userspace boundary by pinning a
+BuildBuddy execution image by digest in `.bazelrc`. The Ubuntu-derived
+execution image and the pinned Ubuntu packages needed by the official LLVM
+binary are build tools only. They are not present in, or required by, the
+musl deployment archive.
+
+A local build with remote execution disabled still depends on the local
+kernel and `/bin/bash`, so it is useful for verification but is not claimed to
+have the same byte-hermetic execution boundary as the default pinned remote
+build. A separate output remains necessary per CPU architecture.
+
+## Default pins
+
+| Component | Version or identity |
 | --- | --- |
+| Bazel | 9.2.0 |
 | Erlang/OTP | 29.0.3 |
 | Elixir | 1.20.2 |
-| BoringCrypto | 2023042800, commit `a430310d6563c0734ddafca7731570dfb683dc19` |
-| BoringCrypto policy archive | SHA-256 `2d5339b756dbf1ceb4fdc4b1c8f19e32ded055292dc57827a6592f15ca9d359f` |
-| musl | commit `b306b16af15c89a04d8e0c55cac2dadbeb39c083` |
-| LLVM/Clang runtimes | 16.0.0 |
-| Bazel | 9.2.0 |
+| OpenSSL core | 3.5.7 LTS |
+| OpenSSL FIPS provider | 3.1.2, CMVP #4985 |
+| BoringSSL/BoringCrypto | commit `a430310d6563c0734ddafca7731570dfb683dc19`, module 2023042800, CMVP #5296 |
+| musl target sysroot | 1.2.6-r2 |
+| LLVM/Clang | 22.1.6 compiler; 22.1.3 target runtime packages |
+| CMake | 3.27.4 |
+| Ninja | 1.11.1 |
+| Go | 1.21.1 |
+| GNU Make | 4.4.1 |
+| rules_foreign_cc | 0.15.1 |
+| rules_perl | 1.1.2 |
 
-For byte-reproducible execution, `scripts/hermetic-bazel.sh` pins the build
-image rather than relying on whatever shell/core utilities a workstation
-happens to have. Docker and the host Linux kernel remain the outer execution
-boundary. A native builder of each CPU architecture removes QEMU/binfmt from
-the trusted build environment; cross-verifying ARM adds that emulator to the
-boundary.
+Ordinary release upgrades are pin and checksum changes followed by the full
+two-architecture matrix. A validated module upgrade is different: it requires
+reviewing the new CMVP certificate, security policy, module identity, and
+listed operational environments rather than merely selecting the newest
+library tag.
 
-Version upgrades are source-pin changes, not source patches. OTP, Elixir,
-musl, and build-tool releases can be updated independently after both platform
-builds pass. Changing the BoringCrypto commit/module is different: it changes
-the validated module identity and requires a new certificate/security-policy
-review.
+## Compliance boundary
 
-The original Google Cloud Storage policy-archive URL currently returns 403
-because anonymous callers lack `storage.objects.get`. The first source URL is
-a timestamped Wayback copy of that exact object; Bazel accepts it only when its
-bytes match the policy archive SHA-256 above. The inaccessible original URL is
-retained as a secondary provenance URL.
-
-## Portability and compliance boundary
-
-Static musl removes deployment dependencies on a distribution's glibc,
-`libcrypto.so`, `libssl.so`, C++ runtime, and crypto-provider search paths. A
-separate artifact is still required per CPU, and Linux kernel/syscall behavior
-is still part of the operating environment. The Elixir command is also a
-script, so the deployment environment needs `/bin/sh`; this is a relocatable
-Linux distribution, not one universal executable for every OS and CPU.
-
-The repository proves that the validated module is built at its required
-identity, statically linked, enters FIPS mode, and rejects tested unapproved
-services. It does **not** make the whole Elixir application FIPS-certified.
-The musl/static environments produced here are not listed operational
-environments on certificate #5296. A regulated deployment must follow the
-[BoringCrypto security policy][policy-5296] and determine whether its exact
-operational environment needs vendor affirmation or a CMVP validation path.
+This repository proves the selected validated module identity, target
+linkage, startup mode, KAT result, and tested service behavior. It does not
+make an Elixir application or an unlisted deployment environment
+FIPS-certified. The produced musl environments are not listed operational
+environments on certificates #4985 or #5296. A regulated deployment must
+follow the applicable security policy and determine whether vendor
+affirmation or a separate CMVP path is required.
 
 ## Licensing
 
-The output includes the corresponding upstream notice files for
-BoringSSL/BoringCrypto, Erlang/OTP, Elixir, musl, LLVM
-compiler-rt/libc++/libc++abi/libunwind, and Linux UAPI headers. The principal terms are
-Apache-2.0 for OTP and Elixir, MIT for musl, Apache-2.0 WITH LLVM-exception for
-LLVM runtimes, and BoringSSL's bundled ISC/OpenSSL/SSLeay notices. Linux
-header sources retain their upstream terms. Static linking does not by itself
-prohibit distribution, but compliance with notices and source/code-offer
-obligations must be reviewed for the way the artifact is shipped. This is an
-engineering inventory, not legal advice.
+The package carries upstream license and notice files. The principal terms
+are Apache-2.0 for OTP, Elixir, OpenSSL, and `rules_foreign_cc`; MIT for musl;
+Apache-2.0 WITH LLVM-exception for LLVM; and BoringSSL's bundled
+ISC/OpenSSL/SSLeay notices. Linux UAPI header sources retain their upstream
+terms. Static linking does not itself violate those licenses, but a
+distributor remains responsible for notices and any source or attribution
+obligations. This is an engineering inventory, not legal advice.
 
-[cmvp-5296]: https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5296
-[policy-5296]: https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp5296.pdf
+- [OpenSSL FIPS certificate #4985](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4985)
+- [BoringCrypto certificate #5296](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5296)
+- [BuildBuddy RBE execution properties](https://www.buildbuddy.io/docs/rbe-platforms/)

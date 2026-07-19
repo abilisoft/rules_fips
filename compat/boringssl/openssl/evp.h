@@ -14,6 +14,10 @@
 static inline const EVP_CIPHER *EVP_aes_128_cfb8(void) { return NULL; }
 static inline const EVP_CIPHER *EVP_aes_192_cfb8(void) { return NULL; }
 static inline const EVP_CIPHER *EVP_aes_256_cfb8(void) { return NULL; }
+static inline const EVP_CIPHER *EVP_chacha20(void) { return NULL; }
+static inline const EVP_CIPHER *EVP_chacha20_poly1305(void) { return NULL; }
+static inline const EVP_CIPHER *EVP_des_cfb8(void) { return NULL; }
+static inline const EVP_CIPHER *EVP_des_ede3_cfb8(void) { return NULL; }
 static inline const EVP_CIPHER *otp_boringssl_aes_cfb128_unavailable(void)
 {
     return NULL;

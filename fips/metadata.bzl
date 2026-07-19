@@ -10,15 +10,14 @@ def _source_pin_manifest_impl(ctx):
         content = """{
   "schema": 1,
   "arch": "%s",
-  "boringcrypto": {
+  "boringssl": {
     "certificate": "CMVP #5296",
+    "module_name": "BoringCrypto",
     "module_version": "2023042800",
     "commit": "a430310d6563c0734ddafca7731570dfb683dc19",
-    "policy_archive_sha256": "2d5339b756dbf1ceb4fdc4b1c8f19e32ded055292dc57827a6592f15ca9d359f",
-    "policy_archive_urls": [
-      "https://web.archive.org/web/20250515081911id_/https://commondatastorage.googleapis.com/chromium-boringssl-fips/boringssl-a430310d6563c0734ddafca7731570dfb683dc19.tar.xz",
-      "https://commondatastorage.googleapis.com/chromium-boringssl-fips/boringssl-a430310d6563c0734ddafca7731570dfb683dc19.tar.xz"
-    ]
+    "source_repository": "https://boringssl.googlesource.com/boringssl",
+    "mirror_archive_sha256": "868930e812afa1967bed57f3cefcadc8a32e1d2207c76b934125189436179346",
+    "mirror_archive_url": "https://github.com/google/boringssl/archive/a430310d6563c0734ddafca7731570dfb683dc19.tar.gz"
   },
   "openssl": {
     "certificate": "CMVP #4985",

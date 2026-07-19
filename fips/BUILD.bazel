@@ -3,17 +3,14 @@ load(":metadata.bzl", "source_pin_manifest")
 package(default_visibility = ["//visibility:public"])
 
 toolchain_type(name = "toolchain_type")
-toolchain_type(name = "bootstrap_toolchain_type")
 
 source_pin_manifest(name = "source_pins")
 
 exports_files([
-    "compiler_rt.bzl",
     "defs.bzl",
     "extensions.bzl",
-    "libcxx.bzl",
     "metadata.bzl",
-    "musl.bzl",
     "ninja.bzl",
     "providers.bzl",
+    "toolbox.bzl",
 ])

@@ -5,6 +5,45 @@ filegroup(
     srcs = glob(["**"]),
 )
 
+filegroup(
+    name = "runtime_srcs",
+    srcs = [
+        "src/build.cc",
+        "src/build_log.cc",
+        "src/clean.cc",
+        "src/clparser.cc",
+        "src/debug_flags.cc",
+        "src/depfile_parser.cc",
+        "src/deps_log.cc",
+        "src/disk_interface.cc",
+        "src/dyndep.cc",
+        "src/dyndep_parser.cc",
+        "src/edit_distance.cc",
+        "src/eval_env.cc",
+        "src/graph.cc",
+        "src/graphviz.cc",
+        "src/json.cc",
+        "src/lexer.cc",
+        "src/line_printer.cc",
+        "src/manifest_parser.cc",
+        "src/metrics.cc",
+        "src/missing_deps.cc",
+        "src/ninja.cc",
+        "src/parser.cc",
+        "src/state.cc",
+        "src/status.cc",
+        "src/string_piece_util.cc",
+        "src/subprocess-posix.cc",
+        "src/util.cc",
+        "src/version.cc",
+    ],
+)
+
+filegroup(
+    name = "runtime_headers",
+    srcs = glob(["src/*.h"]),
+)
+
 exports_files([
     "CMakeLists.txt",
     "COPYING",

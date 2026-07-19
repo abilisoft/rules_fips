@@ -130,6 +130,7 @@
     "https://bcr.bazel.build/modules/rules_cc/0.2.13/MODULE.bazel": "eecdd666eda6be16a8d9dc15e44b5c75133405e820f620a234acc4b1fdc5aa37",
     "https://bcr.bazel.build/modules/rules_cc/0.2.17/MODULE.bazel": "1849602c86cb60da8613d2de887f9566a6d354a6df6d7009f9d04a14402f9a84",
     "https://bcr.bazel.build/modules/rules_cc/0.2.17/source.json": "3832f45d145354049137c0090df04629d9c2b5493dc5c2bf46f1834040133a07",
+    "https://bcr.bazel.build/modules/rules_cc/0.2.4/MODULE.bazel": "1ff1223dfd24f3ecf8f028446d4a27608aa43c3f41e346d22838a4223980b8cc",
     "https://bcr.bazel.build/modules/rules_cc/0.2.8/MODULE.bazel": "f1df20f0bf22c28192a794f29b501ee2018fa37a3862a1a2132ae2940a23a642",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.15.1/MODULE.bazel": "c2c60d26c79fda484acb95cdbec46e89d6b28b4845cb277160ce1e0c8622bb88",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.15.1/source.json": "a161811a63ba8a859086da3b7ff3ad04f2e9c255d7727b41087103fc0eb22f55",
@@ -160,6 +161,8 @@
     "https://bcr.bazel.build/modules/rules_license/0.0.7/MODULE.bazel": "088fbeb0b6a419005b89cf93fe62d9517c0a2b8bb56af3244af65ecfe37e7d5d",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/MODULE.bazel": "a7fda60eefdf3d8c827262ba499957e4df06f659330bbe6cdbdb975b768bb65c",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/source.json": "a52c89e54cc311196e478f8382df91c15f7a2bfdf4c6cd0e2675cc2ff0b56efb",
+    "https://bcr.bazel.build/modules/rules_perl/1.1.2/MODULE.bazel": "7ccaaa5c42fa272d6e7d391a756b3d378fed645f0481baa55cfac0b97d6298af",
+    "https://bcr.bazel.build/modules/rules_perl/1.1.2/source.json": "6facc4dceb7d8eeb54f712399b9b933d5498e1906deffc06e66b5526c85ebe27",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/MODULE.bazel": "df99f03fc7934a4737122518bb87e667e62d780b610910f0447665a7e2be62dc",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/MODULE.bazel": "5b1df97dbc29623bccdf2b0dcd0f5cb08e2f2c9050aab1092fd39a41e82686ff",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/source.json": "bd82e5d7b9ce2d31e380dd9f50c111d678c3bdaca190cb76b0e1c71b05e1ba8a",
@@ -218,124 +221,132 @@
   "moduleExtensions": {
     "//fips:extensions.bzl%fips_sources": {
       "general": {
-        "bzlTransitiveDigest": "aTovwTM4x42iQ6LCUQTxgzFZWbamtqgoahXNcn4zztY=",
+        "bzlTransitiveDigest": "pvak7rs9zrOoaSyFmq32m9pnKHXGFe0kCTlS0MkPvs8=",
         "usagesDigest": "lEHrYJziJwptFDkNrGkonb0f/nwAhnmXBN6btipfIjk=",
-        "recordedInputs": [
-          "REPO_MAPPING:,bazel_tools bazel_tools"
-        ],
+        "recordedInputs": [],
         "generatedRepoSpecs": {
           "boringssl_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:boringssl_src:2d5339b756dbf1ceb4fdc4b1c8f19e32ded055292dc57827a6592f15ca9d359f",
-              "patch_cmds": [],
-              "sha256": "2d5339b756dbf1ceb4fdc4b1c8f19e32ded055292dc57827a6592f15ca9d359f",
-              "strip_prefix": "boringssl",
-              "type": "tar.xz",
+              "preserve_empty_dirs": false,
+              "sha256": "868930e812afa1967bed57f3cefcadc8a32e1d2207c76b934125189436179346",
+              "strip_prefix": "boringssl-a430310d6563c0734ddafca7731570dfb683dc19",
+              "archive_type": "",
               "urls": [
-                "https://web.archive.org/web/20250515081911id_/https://commondatastorage.googleapis.com/chromium-boringssl-fips/boringssl-a430310d6563c0734ddafca7731570dfb683dc19.tar.xz",
-                "https://commondatastorage.googleapis.com/chromium-boringssl-fips/boringssl-a430310d6563c0734ddafca7731570dfb683dc19.tar.xz"
+                "https://github.com/google/boringssl/archive/a430310d6563c0734ddafca7731570dfb683dc19.tar.gz"
               ]
             }
           },
           "elixir_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:elixir_src:1a25bbf9a9016651fc332eecc02bb9681d0b8e722c2e256e73ddb88fbce6e6b0",
-              "patch_cmds": [],
+              "preserve_empty_dirs": false,
               "sha256": "1a25bbf9a9016651fc332eecc02bb9681d0b8e722c2e256e73ddb88fbce6e6b0",
               "strip_prefix": "elixir-1.20.2",
-              "type": "",
+              "archive_type": "",
               "urls": [
                 "https://github.com/elixir-lang/elixir/archive/refs/tags/v1.20.2.tar.gz"
               ]
             }
           },
           "openssl_core_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:openssl_core_src:a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
-              "patch_cmds": [],
+              "preserve_empty_dirs": false,
               "sha256": "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
               "strip_prefix": "openssl-3.5.7",
-              "type": "",
+              "archive_type": "",
               "urls": [
                 "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz"
               ]
             }
           },
           "openssl_fips_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:openssl_fips_src:a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
-              "patch_cmds": [],
+              "preserve_empty_dirs": false,
               "sha256": "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
               "strip_prefix": "openssl-3.1.2",
-              "type": "",
+              "archive_type": "",
               "urls": [
                 "https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz"
               ]
             }
           },
           "otp_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:otp_src:edef13778a449490bc183134e442a955b134d69c56075d97765d8d4951d8d2bb",
-              "patch_cmds": [
-                "find . -type d -empty -print | LC_ALL=C sort > rules_fips_empty_dirs.txt"
-              ],
+              "preserve_empty_dirs": true,
               "sha256": "edef13778a449490bc183134e442a955b134d69c56075d97765d8d4951d8d2bb",
               "strip_prefix": "otp-OTP-29.0.3",
-              "type": "",
+              "archive_type": "",
               "urls": [
                 "https://github.com/erlang/otp/archive/refs/tags/OTP-29.0.3.tar.gz"
               ]
             }
           },
           "linux_amd64_sysroot": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"sysroot\",\n    srcs = glob(\n        [\"**\"],\n        exclude = [\"lib/systemd/**\"],\n    ),\n)\n\nexports_files([\"usr/include/stdio.h\"])\n",
-              "canonical_id": "rules_fips:linux_amd64_sysroot:52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d",
-              "patch_cmds": [],
+              "preserve_empty_dirs": false,
               "sha256": "52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d",
               "strip_prefix": "",
-              "type": "tar.xz",
+              "archive_type": "tar.xz",
               "urls": [
                 "https://commondatastorage.googleapis.com/chrome-linux-sysroot/52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d"
               ]
             }
           },
-          "linux_arm64_sysroot": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+          "musl_src": {
+            "repoRuleId": "@@//fips:extensions.bzl%_source_repo",
             "attributes": {
-              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"sysroot\",\n    srcs = glob(\n        [\"**\"],\n        exclude = [\"lib/systemd/**\"],\n    ),\n)\n\nexports_files([\"usr/include/stdio.h\"])\n",
-              "canonical_id": "rules_fips:linux_arm64_sysroot:c7176a4c7aacbf46bda58a029f39f79a68008d3dee6518f154dcf5161a5486d8",
-              "patch_cmds": [],
-              "sha256": "c7176a4c7aacbf46bda58a029f39f79a68008d3dee6518f154dcf5161a5486d8",
-              "strip_prefix": "",
-              "type": "tar.xz",
+              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
+              "preserve_empty_dirs": false,
+              "sha256": "79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
+              "strip_prefix": "musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083",
+              "archive_type": "",
               "urls": [
-                "https://commondatastorage.googleapis.com/chrome-linux-sysroot/c7176a4c7aacbf46bda58a029f39f79a68008d3dee6518f154dcf5161a5486d8"
+                "https://git.musl-libc.org/cgit/musl/snapshot/musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083.tar.gz"
               ]
             }
           },
-          "musl_src": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+          "musl_amd64_sysroot": {
+            "repoRuleId": "@@//fips:extensions.bzl%_apk_sysroot_repo",
             "attributes": {
-              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "canonical_id": "rules_fips:musl_src:79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
-              "patch_cmds": [],
-              "sha256": "79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
-              "strip_prefix": "musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083",
-              "type": "",
-              "urls": [
-                "https://git.musl-libc.org/cgit/musl/snapshot/musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083.tar.gz"
+              "arch": "x86_64",
+              "packages": [
+                "musl-1.2.6-r2|573712e2f49c15bfc20a2699f204acdfc74c772722b15e7353d768057fae0e71",
+                "musl-dev-1.2.6-r2|6831e8b9e4821dae2c9121f0641f81e543f4ac27c03144c4876980ee84e6988f",
+                "linux-headers-7.0.0-r1|c4535f3f0dc6fd4d80efa7ff2a7a72a2d3f8dae31e2587c0785cc3243889cdf2",
+                "clang22-headers-22.1.3-r2|a987e1e1b7e0c42a1868ca44b703fe07367cbdda4a71675a2517d5f5d0bc86fe",
+                "libc++-dev-22.1.3-r0|0d41363e1fbcc8e7472bd7de7edc69c8808b42b5523a85d074e09d29d385cc80",
+                "libc++-static-22.1.3-r0|c461faf4fdacf587c6ea624a28febd9555ae049218f1bd484e69b93b0b4c00fd",
+                "llvm-libunwind-dev-22.1.3-r0|7dee6480b1f5cb20d4a99b876ad0532a5cc8f814e33b40f043d2977be2b978a7",
+                "llvm-libunwind-static-22.1.3-r0|c926bdd674e739f7a268f6374dfab4b159051fdafa5a44c0c74566051ea3fc88",
+                "compiler-rt-22.1.3-r0|1775eb9ba0aa9d465820ee7eb6918390973389f1f32b15378a9cc9c554ce5ee2"
+              ]
+            }
+          },
+          "musl_arm64_sysroot": {
+            "repoRuleId": "@@//fips:extensions.bzl%_apk_sysroot_repo",
+            "attributes": {
+              "arch": "aarch64",
+              "packages": [
+                "musl-1.2.6-r2|5e9674b7f41152fe2119093b5cb4c13eaaadb19c2d5422b2d7267913e663ee6e",
+                "musl-dev-1.2.6-r2|ca72b84f4eb3c36bbbec04d919eb10159d414c7a43413cc2253841d301fa9486",
+                "linux-headers-7.0.0-r1|d61656e81116040ebac0bc8d9046a3ba97f01a00ee085809103576e8a437468f",
+                "clang22-headers-22.1.3-r2|9740b2bbb74a62270f4014cbbb7fdf50d62914239ec1b5483c86156693dbfac0",
+                "libc++-dev-22.1.3-r0|5c5778947019a397b5e7ed7be5fedde6f2ca2c511fe408ca88bf8f14186f6287",
+                "libc++-static-22.1.3-r0|1bd9eea3025e81efaead32a454d13e4bcb3615230fb1b2f52d52f518f2dca61e",
+                "llvm-libunwind-dev-22.1.3-r0|2a785cbada785b747c8663813f2fe1c1dfd67c0abca1b62186e7b149e6ea2102",
+                "llvm-libunwind-static-22.1.3-r0|1c724758cd311a5eb190306475851047052aa4673d6b55001692f7f2ff0fc400",
+                "compiler-rt-22.1.3-r0|4339f4d0ea4e3c0825ce164e9b26289af894c852005f1f08dcd17709d1d9def5"
               ]
             }
           }
@@ -614,6 +625,26 @@
                 ]
               },
               "toolchain_target_settings": {}
+            }
+          }
+        }
+      }
+    },
+    "@@toolchains_llvm+//toolchain/extensions:distributions.bzl%llvm_distributions": {
+      "general": {
+        "bzlTransitiveDigest": "gCdXpBt3HBBc280OILOFheHmO7lXWXJYnPgYiTtyapI=",
+        "usagesDigest": "VyKGZSw79ryPJ9gt0sqBfIkA7qGOU6tnlDHd7awkb6Q=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "llvm_distributions_data": {
+            "repoRuleId": "@@toolchains_llvm+//toolchain/internal:distributions_repo.bzl%llvm_distributions_repo",
+            "attributes": {
+              "srcs": [
+                "@@toolchains_llvm+//toolchain/distributions:pre_github.jsonc",
+                "@@toolchains_llvm+//toolchain/distributions:github_legacy.jsonc",
+                "@@toolchains_llvm+//toolchain/distributions:github.jsonc",
+                "@@toolchains_llvm+//toolchain/distributions:extra.jsonc"
+              ]
             }
           }
         }

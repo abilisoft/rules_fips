@@ -6,6 +6,7 @@ module(
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+bazel_dep(name = "rules_perl", version = "1.1.2")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 
 http_archive = use_repo_rule(
@@ -16,64 +17,37 @@ http_file = use_repo_rule(
     "@bazel_tools//tools/build_defs/repo:http.bzl",
     "http_file",
 )
+http_archive(
+    name = "fips_busybox_exec",
+    build_file = "//fips/private:busybox.BUILD.bazel",
+    sha256 = "b0d6cfc585d7fdd12df359cc5d38d5e45894e9e9e78c4059eb41577d022ec734",
+    type = "tar.gz",
+    urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/busybox-static-1.37.0-r31.apk"],
+)
+http_archive(
+    name = "fips_make_exec",
+    build_file = "//fips/private:make.BUILD.bazel",
+    sha256 = "a916626a876f64c6b6fb32a6bf0fa93351d09fae0aa7684135642390da647e60",
+    type = "tar.gz",
+    urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/make-4.4.1-r4.apk"],
+)
 http_file(
-    name = "libtinfo5_amd64",
-    sha256 = "b9bb64e716a7d9de05b1b33992763142ca81bcae3a7f8ce7e29fa3c6fd32f1e8",
-    urls = ["https://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_amd64.deb"],
+    name = "compiler_rt_22_1_3_license",
+    downloaded_file_path = "compiler-rt-22.1.3-LICENSE.txt",
+    sha256 = "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+    urls = ["https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-22.1.3/compiler-rt/LICENSE.TXT"],
 )
 http_file(
-    name = "libtinfo5_arm64",
-    sha256 = "79498b68a0253005d483021563414f8595bd3d81a3d32af08fc5ba04ff4b9631",
-    urls = ["https://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_arm64.deb"],
+    name = "llvm_libicu_amd64_deb",
+    downloaded_file_path = "libicu70_70.1-2_amd64.deb",
+    sha256 = "58a154f6307289813da2276f900498ef536ae7c0522d2cf31a3c3c5cf62dfd9a",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu70_70.1-2_amd64.deb"],
 )
-http_archive(
-    name = "compiler_rt_src",
-    build_file = "//fips/private:compiler_rt.BUILD.bazel",
-    sha256 = "a43610aba06538324f4143626c392d51883042685a33d22b629afd8658ea344e",
-    strip_prefix = "compiler-rt-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/compiler-rt-16.0.0.src.tar.xz"],
-)
-http_archive(
-    name = "llvm_common_cmake_src",
-    build_file = "//fips/private:llvm_cmake.BUILD.bazel",
-    sha256 = "04e62ab7d0168688d9102680adf8eabe7b04275f333fe20eef8ab5a3a8ea9fcc",
-    strip_prefix = "cmake-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/cmake-16.0.0.src.tar.xz"],
-)
-http_archive(
-    name = "llvm_project_src",
-    build_file = "//fips/private:llvm_project.BUILD.bazel",
-    sha256 = "9a56d906a2c81f16f06efc493a646d497c53c2f4f28f0cb1f3c8da7f74350254",
-    strip_prefix = "llvm-project-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/llvm-project-16.0.0.src.tar.xz"],
-)
-http_archive(
-    name = "linux_headers_src",
-    build_file = "//fips/private:linux_headers.BUILD.bazel",
-    sha256 = "ac26e508abd56e9f8b89872b6e10c49fc823bcc70d8068a5d8504c1a7c4ff045",
-    strip_prefix = "linux-6.18.38",
-    urls = ["https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.38.tar.xz"],
-)
-http_archive(
-    name = "libcxx_src",
-    build_file = "//fips/private:libcxx.BUILD.bazel",
-    sha256 = "4b8461d39c5314931d8580c5033a2a3ff08ea026d8e563957013ffd0cff9be9a",
-    strip_prefix = "libcxx-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/libcxx-16.0.0.src.tar.xz"],
-)
-http_archive(
-    name = "libcxxabi_src",
-    build_file = "//fips/private:libcxxabi.BUILD.bazel",
-    sha256 = "1aaf1a1bc9553b2dfded48023ae7a73d7b322acbc803649bfd6ddb818969a961",
-    strip_prefix = "libcxxabi-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/libcxxabi-16.0.0.src.tar.xz"],
-)
-http_archive(
-    name = "libunwind_src",
-    build_file = "//fips/private:libunwind.BUILD.bazel",
-    sha256 = "32b9bc69b2ccf8e30b689508c5cc9dbd34616991d5a91679a32a8fc4cde2f921",
-    strip_prefix = "libunwind-16.0.0.src",
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/libunwind-16.0.0.src.tar.xz"],
+http_file(
+    name = "llvm_libxml2_amd64_deb",
+    downloaded_file_path = "libxml2_2.9.13+dfsg-1ubuntu0.12_amd64.deb",
+    sha256 = "b3678e6e4b166bc0e4226fb118d489ab51802c772914421397c9dcb2dd0e0d2b",
+    urls = ["https://cl.archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.13+dfsg-1ubuntu0.12_amd64.deb"],
 )
 http_archive(
     name = "ninja_1_11_1_src",
@@ -92,52 +66,22 @@ clang_archive(
     include_patterns = [
         "*/bin/clang",
         "*/bin/clang++",
-        "*/bin/clang-16",
+        "*/bin/clang-22",
         "*/bin/ld.lld",
         "*/bin/lld",
         "*/bin/llvm-ar",
         "*/bin/llvm-nm",
         "*/bin/llvm-objcopy",
+        "*/bin/llvm-objdump",
         "*/bin/llvm-ranlib",
         "*/bin/llvm-readelf",
         "*/bin/llvm-readobj",
         "*/bin/llvm-strip",
-        "*/lib/clang/16/include/**",
+        "*/lib/clang/22/**",
     ],
-    sha256 = "2b8a69798e8dddeb57a186ecac217a35ea45607cb2b3cf30014431cff4340ad1",
+    sha256 = "c5ac8ef89ca39d30cb32e9b83772f995dd891c685ebc188d593c943a64d5f8b5",
     strip_components = 1,
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/clang%2Bllvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"],
-)
-clang_archive(
-    name = "fips_clang_arm64",
-    include_patterns = [
-        "*/bin/clang",
-        "*/bin/clang++",
-        "*/bin/clang-16",
-        "*/bin/ld.lld",
-        "*/bin/lld",
-        "*/bin/llvm-ar",
-        "*/bin/llvm-nm",
-        "*/bin/llvm-objcopy",
-        "*/bin/llvm-ranlib",
-        "*/bin/llvm-readelf",
-        "*/bin/llvm-readobj",
-        "*/bin/llvm-strip",
-        "*/lib/clang/16/include/**",
-    ],
-    sha256 = "b750ba3120e6153fc5b316092f19b52cf3eb64e19e5f44bd1b962cb54a20cf0a",
-    strip_components = 1,
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/clang%2Bllvm-16.0.0-aarch64-linux-gnu.tar.xz"],
-)
-clang_archive(
-    name = "fips_llvm_cmake",
-    include_patterns = [
-        "*/cmake/modules/**",
-        "*/runtimes/**",
-    ],
-    sha256 = "bce6fc19c48501546097e7b839c9ee376ea23b5cfd09199de8e42d5a5b5d4aae",
-    strip_components = 1,
-    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/llvm-16.0.0.src.tar.xz"],
+    urls = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/LLVM-22.1.6-Linux-X64.tar.xz"],
 )
 clang_archive(
     name = "fips_cmake_amd64",
@@ -147,40 +91,16 @@ clang_archive(
     urls = ["https://github.com/Kitware/CMake/releases/download/v3.27.4/cmake-3.27.4-linux-x86_64.tar.gz"],
 )
 clang_archive(
-    name = "fips_cmake_arm64",
-    include_patterns = ["**"],
-    sha256 = "45538d394bd4ef2a423fa78dff5cad16bcf437a4a6dc655e999177170632b039",
-    strip_components = 1,
-    urls = ["https://github.com/Kitware/CMake/releases/download/v3.27.4/cmake-3.27.4-linux-aarch64.tar.gz"],
-)
-clang_archive(
     name = "fips_go_amd64",
     include_patterns = ["**"],
     sha256 = "b3075ae1ce5dab85f89bc7905d1632de23ca196bd8336afd93fa97434cfa55ae",
     strip_components = 1,
     urls = ["https://go.dev/dl/go1.21.1.linux-amd64.tar.gz"],
 )
-clang_archive(
-    name = "fips_go_arm64",
-    include_patterns = ["**"],
-    sha256 = "7da1a3936a928fd0b2602ed4f3ef535b8cd1990f1503b8d3e1acc0fa0759c967",
-    strip_components = 1,
-    urls = ["https://go.dev/dl/go1.21.1.linux-arm64.tar.gz"],
-)
 
 foreign_tools = use_extension("@rules_foreign_cc//foreign_cc:extensions.bzl", "tools")
 use_repo(
     foreign_tools,
-    "cmake_3.31.8_toolchains",
-    "cmake_src",
-    "gettext_runtime",
-    "glib_dev",
-    "glib_src",
-    "gnumake_src",
-    "meson_src",
-    "ninja_1.13.0_toolchains",
-    "ninja_build_src",
-    "pkgconfig_src",
     "rules_foreign_cc_framework_toolchains",
 )
 
@@ -190,7 +110,8 @@ use_repo(
     "boringssl_src",
     "elixir_src",
     "linux_amd64_sysroot",
-    "linux_arm64_sysroot",
+    "musl_amd64_sysroot",
+    "musl_arm64_sysroot",
     "musl_src",
     "openssl_core_src",
     "openssl_fips_src",
@@ -198,13 +119,16 @@ use_repo(
 )
 
 register_toolchains(
-    "@cmake_3.31.8_toolchains//:all",
-    "@ninja_1.13.0_toolchains//:all",
-    "@rules_foreign_cc//toolchains:all",
-    "//fips/toolchains:bootstrap_linux_amd64_toolchain",
-    "//fips/toolchains:bootstrap_linux_arm64_cross_toolchain",
-    "//fips/toolchains:bootstrap_linux_arm64_toolchain",
+    "@rules_foreign_cc_framework_toolchains//:all",
+    "//fips/toolchains:foreign_autoconf_toolchain",
+    "//fips/toolchains:foreign_automake_toolchain",
+    "//fips/toolchains:foreign_cmake_toolchain",
+    "//fips/toolchains:foreign_m4_toolchain",
+    "//fips/toolchains:foreign_make_toolchain",
+    "//fips/toolchains:foreign_ninja_toolchain",
+    "//fips/toolchains:foreign_pkgconfig_toolchain",
+    "//fips/toolchains:foreign_cc_amd64_toolchain",
+    "//fips/toolchains:foreign_cc_arm64_toolchain",
     "//fips/toolchains:linux_amd64_toolchain",
     "//fips/toolchains:linux_arm64_cross_toolchain",
-    "//fips/toolchains:linux_arm64_toolchain",
 )

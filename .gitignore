@@ -3,3 +3,4 @@
 .local/
 bazel-*
 erl_crash.dump
+user.bazelrc

@@ -1,3 +1,14 @@
+load("//fips:toolbox.bzl", "host_go_tool")
+
 package(default_visibility = ["//fips:__subpackages__"])
 
-exports_files(["tooling.bzl"])
+exports_files([
+    "busybox.BUILD.bazel",
+    "make.BUILD.bazel",
+])
+
+host_go_tool(
+    name = "fips_artifact_validator",
+    source = "//tools/fips_artifact_validator:main.go",
+    visibility = ["//visibility:public"],
+)

@@ -2,8 +2,6 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "boring_fips_check.c",
-    "elixir",
-    "elixir-boringssl",
     "fips_boot.erl",
     "fips_boot_boringssl.erl",
     "openssl-fips.cnf",
