@@ -1,14 +1,14 @@
 """Public providers exported by rules_fips."""
 
 FipsCryptoInfo = provider(
-    doc = "A built cryptographic module and the evidence required to consume it.",
+    doc = "A built cryptographic module plus build and runtime evidence; not a compliance determination.",
     fields = {
-        "backend": "Canonical backend name: boringssl or openssl.",
-        "certificate": "CMVP certificate identifier.",
+        "backend": "Canonical backend name: openssl.",
+        "certificate": "Referenced CMVP certificate identifier; this is not a validation claim for the output.",
         "include_dir": "Tree artifact containing consumer headers.",
-        "manifest": "Machine-readable build and validation manifest.",
-        "module_name": "Validated cryptographic module name.",
-        "module_version": "Validated module version.",
+        "manifest": "Machine-readable build and runtime evidence manifest.",
+        "module_name": "Cryptographic module name documented by the certificate reference.",
+        "module_version": "Reported module version or update-stream identity.",
         "runtime_files": "Runtime files required in addition to static archives.",
         "service_indicator": "How approved-service status is enforced or observed.",
         "static_libs": "Depset of static archives in deterministic link order.",
@@ -82,15 +82,6 @@ MuslSysrootInfo = provider(
     },
 )
 
-PolicyNinjaInfo = provider(
-    doc = "The exact statically linked Ninja executable named by the BoringCrypto security policy.",
-    fields = {
-        "binary": "Pinned Ninja executable.",
-        "files": "All runtime files needed by the executable.",
-        "version": "Pinned Ninja version.",
-    },
-)
-
 HermeticMakeInfo = provider(
     doc = "A statically linked launcher for a pinned GNU make executable and musl runtime.",
     fields = {
@@ -116,23 +107,12 @@ FipsPlatformInfo = provider(
     doc = "Architecture-specific values consumed by FIPS build actions.",
     fields = {
         "arch": "Canonical rules_fips architecture name.",
-        "boringssl_processor": "CMake processor used by BoringSSL.",
-        "build_compiler_rt_files": "Pinned compiler-rt files for the native OTP cross-build bootstrap.",
-        "build_compiler_rt_path": "Native compiler-rt builtins archive.",
-        "build_sysroot_files": "Pinned glibc sysroot files for a native OTP cross-build bootstrap.",
-        "build_sysroot_path": "Execution-root-relative native bootstrap sysroot.",
-        "build_triplet": "Canonical triplet of the Bazel execution host.",
-        "clang_cc": "Pinned Clang C compiler used for validated BoringCrypto assembly.",
-        "clang_cxx": "Pinned Clang C++ compiler used for validated BoringCrypto assembly.",
         "clang_files": "Files belonging to the pinned, architecture-specific Clang tool.",
         "clang_library_path": "Pinned native library search path required by LLVM executables.",
         "clang_resource_dir": "Clang resource directory used for native bootstrap compilation.",
         "clang_runtime_files": "Pinned native shared libraries required by LLVM executables.",
-        "cmake_bin": "Pinned CMake executable required by the BoringCrypto security policy.",
-        "cmake_files": "Files belonging to the pinned CMake release.",
-        "go_bin": "Pinned Go executable required by the BoringCrypto security policy.",
+        "go_bin": "Pinned Go executable used to compile hermetic helper tools.",
         "go_files": "Files belonging to the pinned Go release.",
-        "gnu_triplet": "GNU target triplet.",
         "libc": "Target C library name.",
         "llvm_ar": "Pinned LLVM archiver.",
         "llvm_ld": "Pinned LLVM linker.",
@@ -153,6 +133,8 @@ FipsPlatformInfo = provider(
         "crt_dir": "Directory containing source-built musl CRT startup objects.",
         "crt_files": "Source-built musl CRT startup objects required by link actions.",
         "openssl_target": "OpenSSL Configure target.",
+        "qemu_aarch64_file": "Pinned static qemu-aarch64 execution tool.",
+        "qemu_aarch64_files": "Files belonging to the pinned qemu-aarch64 execution tool.",
         "resource_dir": "Clang resource directory supplied by the target sysroot.",
         "sysroot_files": "Source-built musl sysroot required by target build actions.",
         "sysroot_path": "Execution-root-relative path to the source-built musl sysroot.",

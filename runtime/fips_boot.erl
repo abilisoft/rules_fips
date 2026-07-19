@@ -9,14 +9,9 @@ verify() ->
     Info = crypto:info(),
     State = {crypto:info_fips(),
              maps:get(link_type, Info, missing),
-             maps:get(fips_provider_available, Info, false),
-             maps:get(fips_provider_buildinfo, Info, missing)},
+             maps:get(fips_provider_available, Info, false)},
     case State of
-        {enabled, static, true, BuildInfo} when is_list(BuildInfo) ->
-            case string:find(BuildInfo, "3.1.2") of
-                nomatch -> fail({unexpected_fips_provider, BuildInfo});
-                _ -> ok
-            end;
+        {enabled, static, true} -> ok;
         _ ->
             fail({fips_invariant_failed, State, Info})
     end.

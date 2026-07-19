@@ -40,9 +40,9 @@ func main() {
 }
 
 func run() error {
-	root := os.Getenv("FIPS_ELIXIR_ROOT")
-	if root == "" {
-		root = "/opt/fips-elixir"
+	root, err := runtimeRoot()
+	if err != nil {
+		return err
 	}
 	arguments, execute, err := elixirArguments(root, os.Args[0], os.Args[1:])
 	if err != nil {
@@ -52,26 +52,43 @@ func run() error {
 		return nil
 	}
 
-	switch backend {
-	case "openssl":
-		if err := prepareOpenSSL(root); err != nil {
-			return err
-		}
-		arguments = insertFIPSBoot(arguments, root, "fips_boot")
-	case "boringssl":
-		checker := filepath.Join(root, "bin/boring-fips-check")
-		command := exec.Command(checker)
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-		if err := command.Run(); err != nil {
-			return fmt.Errorf("run BoringCrypto integrity check: %w", err)
-		}
-		arguments = insertFIPSBoot(arguments, root, "fips_boot_boringssl")
-	default:
+	if backend != "openssl" {
 		return fmt.Errorf("unsupported compiled backend %q", backend)
 	}
+	if err := prepareOpenSSL(root); err != nil {
+		return err
+	}
+	arguments = insertFIPSBoot(arguments, root, "fips_boot")
 
 	return execOTP(root, arguments)
+}
+
+func runtimeRoot() (string, error) {
+	if override := os.Getenv("FIPS_ELIXIR_ROOT"); override != "" {
+		root, err := filepath.Abs(override)
+		if err != nil {
+			return "", fmt.Errorf("resolve FIPS_ELIXIR_ROOT: %w", err)
+		}
+		return root, nil
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve launcher executable: %w", err)
+	}
+	return runtimeRootFromExecutable(executable)
+}
+
+func runtimeRootFromExecutable(executable string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", fmt.Errorf("resolve launcher path %s: %w", executable, err)
+	}
+	binDir := filepath.Dir(resolved)
+	if filepath.Base(binDir) != "bin" {
+		return "", fmt.Errorf("launcher must be located in a runtime bin directory: %s", resolved)
+	}
+	return filepath.Dir(binDir), nil
 }
 
 func insertFIPSBoot(arguments []string, root, module string) []string {

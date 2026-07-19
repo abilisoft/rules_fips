@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 AbiliSoft
+# SPDX-License-Identifier: Apache-2.0
+
+# Keep ownership project-scoped so the repository does not encode a person's
+# identity. The matching organization team owns all source, build, security,
+# and documentation changes.
+* @abilisoft/rules-fips-maintainers

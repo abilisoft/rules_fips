@@ -1,27 +1,35 @@
 """Public API for rules_fips."""
 
 load("//fips:elixir.bzl", _elixir_runtime = "elixir_runtime", _fips_boot_module = "fips_boot_module")
-load("//fips:foreign_crypto.bzl", _boringssl_fips_static = "boringssl_fips_static", _openssl_fips = "openssl_fips")
+load("//fips:foreign_crypto.bzl", _openssl_fips = "openssl_fips")
 load("//fips:foreign_otp.bzl", _otp_fips_runtime = "otp_fips_runtime", _otp_native_bootstrap = "otp_native_bootstrap")
 load("//fips:launcher.bzl", _fips_launcher = "fips_launcher")
 load("//fips:package.bzl", _fips_runtime_package = "fips_runtime_package")
 load("//fips:providers.bzl", _FipsCryptoInfo = "FipsCryptoInfo", _FipsPlatformInfo = "FipsPlatformInfo", _FipsRuntimeInfo = "FipsRuntimeInfo")
+load("//fips:source_versions.bzl", "ELIXIR_SOURCE", "OTP_SOURCE")
 
 FipsCryptoInfo = _FipsCryptoInfo
 FipsPlatformInfo = _FipsPlatformInfo
 FipsRuntimeInfo = _FipsRuntimeInfo
-boringssl_fips_static = _boringssl_fips_static
 openssl_fips = _openssl_fips
 
 def fips_elixir_runtime(
         name,
         crypto,
-        backend = "openssl",
-        otp_version = "29.0.3",
-        elixir_version = "1.20.2",
+        otp_version = OTP_SOURCE.version,
+        elixir_version = ELIXIR_SOURCE.version,
         visibility = None,
         tags = None):
-    """Builds OTP and Elixir in cacheable stages, then audits and packages them."""
+    """Builds OTP and Elixir in cacheable stages, then audits and packages them.
+
+    Args:
+      name: Distribution target name.
+      crypto: Label providing `FipsCryptoInfo`.
+      otp_version: OTP version recorded in evidence.
+      elixir_version: Elixir version recorded in evidence.
+      visibility: Optional visibility for the distribution target.
+      tags: Optional tags applied to generated targets.
+    """
     common = {}
     if tags != None:
         common["tags"] = tags
@@ -38,7 +46,6 @@ def fips_elixir_runtime(
     )
     _otp_fips_runtime(
         name = otp_name,
-        backend = backend,
         bootstrap = ":" + bootstrap_name,
         crypto = crypto,
         otp_version = otp_version,
@@ -53,13 +60,11 @@ def fips_elixir_runtime(
     )
     _fips_boot_module(
         name = boot_name,
-        backend = backend,
         bootstrap = ":" + bootstrap_name,
         **common
     )
     _fips_launcher(
         name = launcher_name,
-        backend = backend,
         elixir_version = elixir_version,
         **common
     )
@@ -76,12 +81,11 @@ def fips_elixir_runtime(
         **package_args
     )
 
-def fips_elixir_distribution(name, backend = "openssl_fips", visibility = None, tags = None):
-    """Builds crypto plus OTP/Elixir as one platform-aware distribution.
+def fips_elixir_distribution(name, visibility = None, tags = None):
+    """Builds OpenSSL plus OTP/Elixir as one platform-aware distribution.
 
     Args:
       name: Name of the distribution target.
-      backend: `openssl_fips` or `boringssl_fips_static`.
       visibility: Optional Bazel visibility for the distribution target.
       tags: Optional tags applied to both targets.
     """
@@ -90,25 +94,16 @@ def fips_elixir_distribution(name, backend = "openssl_fips", visibility = None, 
     if tags != None:
         common["tags"] = tags
 
-    if backend == "boringssl_fips_static":
-        _boringssl_fips_static(
-            name = crypto_name,
-            **common
-        )
-    elif backend == "openssl_fips":
-        _openssl_fips(
-            name = crypto_name,
-            **common
-        )
-    else:
-        fail("unsupported FIPS backend: %s" % backend)
+    _openssl_fips(
+        name = crypto_name,
+        **common
+    )
 
     runtime_args = dict(common)
     if visibility != None:
         runtime_args["visibility"] = visibility
     fips_elixir_runtime(
         name = name,
-        backend = "boringssl" if backend == "boringssl_fips_static" else "openssl",
         crypto = ":" + crypto_name,
         **runtime_args
     )

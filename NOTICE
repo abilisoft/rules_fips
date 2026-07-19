@@ -1,0 +1,15 @@
+rules_fips
+
+This repository is licensed under the Apache License, Version 2.0.
+
+Build outputs may incorporate or redistribute components under their own
+licenses, including Erlang/OTP, Elixir, OpenSSL, musl, Go standard-library
+code, LLVM runtime support, and Linux UAPI headers. The packaging rules carry
+the applicable upstream license and notice files into runtime archives.
+
+The build graph also downloads execution-only tools such as Clang/LLD, GNU
+make, BusyBox, Perl, and QEMU. They retain their upstream licenses and are not
+intentionally included in the runtime archive.
+
+Review the produced license inventory before redistribution. This notice is
+not legal advice and does not replace any upstream license text.

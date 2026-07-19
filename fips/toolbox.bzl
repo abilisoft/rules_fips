@@ -217,6 +217,94 @@ host_go_tool = rule(
     executable = True,
 )
 
+def _hermetic_musl_toolchain_impl(ctx):
+    go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
+    marker_suffix = "/usr/bin/clang"
+    if not ctx.file.marker.path.endswith(marker_suffix):
+        fail("musl toolchain marker must end with %s" % marker_suffix)
+    toolchain_root = ctx.file.marker.path.removesuffix(marker_suffix)
+    launcher = ctx.outputs.launcher
+    go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    ctx.actions.run(
+        arguments = [
+            "build",
+            "-trimpath",
+            "-ldflags=-s -w -X main.toolchainRoot=" + toolchain_root,
+            "-o",
+            launcher.path,
+            ctx.file._source.path,
+        ],
+        env = {
+            "CGO_ENABLED": "0",
+            "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOENV": "off",
+            "GOFLAGS": "-buildvcs=false",
+            "GOOS": "linux",
+            "GOARCH": "amd64",
+            "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
+            "GOTOOLCHAIN": "local",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = go_root.path + "/bin/go",
+        execution_requirements = {"block-network": "1"},
+        inputs = depset(direct = [ctx.file._source], transitive = [go_files]),
+        mnemonic = "HermeticMuslToolLauncherCompile",
+        outputs = [launcher, go_state],
+        progress_message = "Compiling static launcher for pinned musl-native LLVM tools",
+    )
+    executables = [
+        ctx.outputs.ar,
+        ctx.outputs.clang,
+        ctx.outputs.clangxx,
+        ctx.outputs.ld,
+        ctx.outputs.nm,
+        ctx.outputs.objcopy,
+        ctx.outputs.objdump,
+        ctx.outputs.ranlib,
+        ctx.outputs.readelf,
+        ctx.outputs.strip,
+    ]
+    for executable in executables:
+        ctx.actions.symlink(
+            is_executable = True,
+            output = executable,
+            target_file = launcher,
+        )
+    files = depset(
+        direct = [launcher] + executables,
+        transitive = [ctx.attr.toolchain[DefaultInfo].files],
+    )
+    return [DefaultInfo(files = files)]
+
+hermetic_musl_toolchain = rule(
+    implementation = _hermetic_musl_toolchain_impl,
+    attrs = {
+        "marker": attr.label(allow_single_file = True, mandatory = True),
+        "toolchain": attr.label(mandatory = True),
+        "_go": attr.label(default = "@fips_go_amd64//sysroot:sysroot"),
+        "_source": attr.label(
+            allow_single_file = [".go"],
+            default = "//tools/hermetic_musl_tool:main.go",
+        ),
+    },
+    doc = "Builds a static launcher for a pinned musl-native execution toolchain.",
+    outputs = {
+        "ar": "%{name}/bin/ar",
+        "clang": "%{name}/bin/clang",
+        "clangxx": "%{name}/bin/clang++",
+        "launcher": "%{name}/launcher",
+        "ld": "%{name}/bin/ld.lld",
+        "nm": "%{name}/bin/nm",
+        "objcopy": "%{name}/bin/objcopy",
+        "objdump": "%{name}/bin/objdump",
+        "ranlib": "%{name}/bin/ranlib",
+        "readelf": "%{name}/bin/readelf",
+        "strip": "%{name}/bin/strip",
+    },
+)
+
 def _foreign_toolbox_impl(ctx):
     perl = ctx.toolchains[_PERL_TOOLCHAIN].perl_runtime
     make = ctx.attr.make[HermeticMakeInfo]
@@ -267,37 +355,50 @@ foreign_toolbox = rule(
     toolchains = [_PERL_TOOLCHAIN],
 )
 
-def foreign_action_environment(toolbox, extra = {}):
-    """Returns a strict environment for an explicit foreign-build action."""
-    environment = {
-        "CONFIG_SHELL": "/proc/self/cwd/" + toolbox.sh.path,
-        "LANG": "C.UTF-8",
-        "LC_ALL": "C.UTF-8",
-        "MAKE": "/proc/self/cwd/" + toolbox.make.path,
-        "PATH": ":".join([
-            "/proc/self/cwd/" + toolbox.bin_dir,
-            "/proc/self/cwd/" + toolbox.perl.dirname,
-        ]),
-        "PERL": "/proc/self/cwd/" + toolbox.perl.path,
-        "SHELL": "/proc/self/cwd/" + toolbox.sh.path,
-        "SOURCE_DATE_EPOCH": "0",
-    }
-    environment.update(extra)
-    return environment
+def _foreign_toolbox_shell_impl(ctx):
+    toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
+    return [DefaultInfo(files = depset([toolbox.sh]))]
+
+foreign_toolbox_shell = rule(
+    implementation = _foreign_toolbox_shell_impl,
+    attrs = {
+        "toolbox": attr.label(
+            mandatory = True,
+            providers = [ForeignToolboxInfo],
+        ),
+    },
+    doc = "Exposes the pinned toolbox shell as a location-expansion anchor.",
+)
 
 def _foreign_perl_impl(ctx):
     runtime = ctx.toolchains[_PERL_TOOLCHAIN].perl_runtime
-    executable = ctx.actions.declare_file(ctx.label.name + "/bin/perl")
-    ctx.actions.symlink(
-        is_executable = True,
-        output = executable,
-        target_file = runtime.interpreter,
-    )
+    interpreter_suffix = "/bin/" + runtime.interpreter.basename
+    if not runtime.interpreter.path.endswith(interpreter_suffix):
+        fail("Perl interpreter must be located under a bin directory")
+    runtime_root = runtime.interpreter.path[:-len(interpreter_suffix)]
+    runtime_prefix = runtime_root + "/"
+    outputs = []
+    executable = None
+    for source in runtime.runtime.to_list():
+        if not source.path.startswith(runtime_prefix):
+            fail("Perl runtime file is outside the relocatable runtime root: %s" % source.path)
+        relative_path = source.path[len(runtime_prefix):]
+        output = ctx.actions.declare_file(ctx.label.name + "/" + relative_path)
+        ctx.actions.symlink(
+            is_executable = source.path == runtime.interpreter.path,
+            output = output,
+            target_file = source,
+        )
+        outputs.append(output)
+        if source.path == runtime.interpreter.path:
+            executable = output
+    if executable == None:
+        fail("Perl runtime did not contain its interpreter")
     return [
         DefaultInfo(
             executable = executable,
-            files = depset([executable]),
-            runfiles = ctx.runfiles(transitive_files = runtime.runtime),
+            files = depset(outputs),
+            runfiles = ctx.runfiles(files = outputs),
         ),
     ]
 

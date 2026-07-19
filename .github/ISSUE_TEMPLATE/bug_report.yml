@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible build, packaging, or runtime problem.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not report vulnerabilities here; use the private process in SECURITY.md.
+  - type: input
+    id: target
+    attributes:
+      label: Target and platform
+      description: Include the Bazel label, platform config, and crypto backend.
+      placeholder: //examples:elixir_openssl_fips, linux_amd64, OpenSSL
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest command sequence that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed result
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log
+      description: Include the failing Bazel mnemonic and redact credentials or private data.
+      render: text

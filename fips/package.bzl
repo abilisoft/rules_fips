@@ -36,37 +36,32 @@ def _runtime_package_impl(ctx):
     launcher = ctx.attr.launcher[FipsLauncherInfo]
     if launcher.backend != crypto.backend or otp.backend != crypto.backend:
         fail("OTP, launcher, and crypto backends must match")
+    if crypto.backend != "openssl":
+        fail("rules_fips supports only the OpenSSL backend")
 
     runtime_files = crypto.runtime_files.to_list()
-    checker = _file_named(runtime_files, "boring-fips-check", required = False)
     openssl_bin = _file_named(runtime_files, "openssl", required = False)
     fips_module = _file_named(runtime_files, "fips.so", required = False)
     openssl_config = _file_named(runtime_files, "openssl-fips.cnf", required = False)
     operational = {}
     overlays = []
-    if crypto.backend == "openssl":
-        if not openssl_bin or not fips_module or not openssl_config:
-            fail("OpenSSL runtime requires openssl, fips.so, and openssl-fips.cnf")
-        overlays.extend([
-            ("opt/fips-elixir/bin/openssl", openssl_bin),
-            ("opt/fips-elixir/lib/ossl-modules/fips.so", fips_module),
-            ("opt/fips-elixir/ssl/openssl-fips.cnf", openssl_config),
-            ("opt/fips-elixir/lib/" + platform.musl_loader_file.basename, platform.musl_loader_file),
-            ("opt/fips-elixir/lib/" + platform.musl_libc_file.basename, platform.musl_libc_file),
-        ])
-        for file in [
-            openssl_bin,
-            fips_module,
-            openssl_config,
-            platform.musl_loader_file,
-            platform.musl_libc_file,
-        ]:
-            operational[file.path] = True
-    else:
-        if not checker:
-            fail("BoringSSL FIPS runtime requires boring-fips-check")
-        overlays.append(("opt/fips-elixir/bin/boring-fips-check", checker))
-        operational[checker.path] = True
+    if not openssl_bin or not fips_module or not openssl_config:
+        fail("OpenSSL runtime requires openssl, fips.so, and openssl-fips.cnf")
+    overlays.extend([
+        ("opt/fips-elixir/bin/openssl", openssl_bin),
+        ("opt/fips-elixir/lib/ossl-modules/fips.so", fips_module),
+        ("opt/fips-elixir/ssl/openssl-fips.cnf", openssl_config),
+        ("opt/fips-elixir/lib/" + platform.musl_loader_file.basename, platform.musl_loader_file),
+        ("opt/fips-elixir/lib/" + platform.musl_libc_file.basename, platform.musl_libc_file),
+    ])
+    for file in [
+        openssl_bin,
+        fips_module,
+        openssl_config,
+        platform.musl_loader_file,
+        platform.musl_libc_file,
+    ]:
+        operational[file.path] = True
 
     license_names = {}
     for file in runtime_files:
@@ -81,6 +76,7 @@ def _runtime_package_impl(ctx):
         ("opt/fips-elixir/licenses/erlang-otp.txt", ctx.file.otp_license),
         ("opt/fips-elixir/licenses/elixir.txt", ctx.file.elixir_license),
         ("opt/fips-elixir/licenses/compiler-rt.txt", ctx.file.compiler_rt_license),
+        ("opt/fips-elixir/licenses/go.txt", ctx.file.go_license),
     ])
 
     packager = ctx.actions.declare_file(ctx.label.name + "_tools/runtime_packager")
@@ -156,6 +152,7 @@ def _runtime_package_impl(ctx):
                 ctx.file.otp_license,
                 ctx.file.elixir_license,
                 ctx.file.compiler_rt_license,
+                ctx.file.go_license,
             ] + runtime_files + [source for _, source in overlays],
         ),
         mnemonic = "FipsRuntimePackage",
@@ -191,6 +188,10 @@ fips_runtime_package = rule(
             default = "@elixir_src//:LICENSE",
         ),
         "launcher": attr.label(mandatory = True, providers = [FipsLauncherInfo]),
+        "go_license": attr.label(
+            allow_single_file = True,
+            default = "@go_1_26_5_license//file",
+        ),
         "otp": attr.label(mandatory = True, providers = [FipsOtpRuntimeInfo]),
         "otp_license": attr.label(
             allow_single_file = True,

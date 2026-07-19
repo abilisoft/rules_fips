@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a focused improvement to the rules or supported build matrix.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What build or deployment need is not met today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful outcome, including backend and architecture.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: FIPS and portability boundary
+      description: Note any certificate, module, operational-environment, linkage, or hermeticity implications.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

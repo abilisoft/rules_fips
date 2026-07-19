@@ -22,17 +22,13 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: fips_artifact_validator <boringssl|openssl|otp> ...")
+		return errors.New("usage: fips_artifact_validator <openssl|otp> ...")
 	}
 	switch args[0] {
-	case "boringssl":
-		return validateBoringSSL(args[1:])
 	case "openssl":
 		return validateOpenSSL(args[1:])
 	case "otp":
 		return validateOTP(args[1:])
-	case "stage-boringssl":
-		return stageBoringSSL(args[1:])
 	case "stage-otp-bootstrap":
 		return stageOTPBootstrap(args[1:])
 	case "stage-otp-tools":
@@ -69,116 +65,16 @@ func stageOTPTools(args []string) error {
 	return copyDirectory(source, destination)
 }
 
-func stageBoringSSL(args []string) error {
-	if len(args) != 3 {
-		return fmt.Errorf("stage-boringssl: got %d arguments, want 3", len(args))
-	}
-	sourceRoot := filepath.Dir(absolute(args[0]))
-	buildRoot, installRoot := absolute(args[1]), absolute(args[2])
-	for _, directory := range []string{filepath.Join(installRoot, "lib"), filepath.Join(installRoot, "include")} {
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			return err
-		}
-	}
-	for _, library := range []string{"libcrypto.a", "libssl.a"} {
-		sourceDirectory := strings.TrimPrefix(library, "lib")
-		sourceDirectory = strings.TrimSuffix(sourceDirectory, ".a")
-		if err := copyFile(
-			filepath.Join(buildRoot, sourceDirectory, library),
-			filepath.Join(installRoot, "lib", library),
-		); err != nil {
-			return err
-		}
-	}
-	return copyDirectory(filepath.Join(sourceRoot, "include"), filepath.Join(installRoot, "include"))
-}
-
-func validateBoringSSL(args []string) error {
-	if len(args) != 13 {
-		return fmt.Errorf("boringssl: got %d arguments, want 13", len(args))
-	}
-	checkerSource, libcrypto, libssl, includeDir := absolute(args[0]), absolute(args[1]), absolute(args[2]), absolute(args[3])
-	checker, manifest, arch := absolute(args[4]), absolute(args[5]), args[6]
-	cc, readelf, targetTriplet := absolute(args[7]), absolute(args[8]), args[9]
-	sysroot, resourceDir, muslRevision := absolute(args[10]), absolute(args[11]), args[12]
-
-	for _, library := range []string{libcrypto, libssl} {
-		header, err := commandOutput(nil, readelf, "-h", library)
-		if err != nil {
-			return err
-		}
-		if arch == "arm64" {
-			if !strings.Contains(header, "Machine:") || !strings.Contains(header, "AArch64") || strings.Contains(header, "X86-64") {
-				return fmt.Errorf("%s is not an AArch64 archive", library)
-			}
-		} else if !strings.Contains(header, "Machine:") || !strings.Contains(header, "X86-64") {
-			return fmt.Errorf("%s is not an x86-64 archive", library)
-		}
-	}
-
-	if err := os.MkdirAll(filepath.Dir(checker), 0o755); err != nil {
-		return err
-	}
-	if err := runCommand(nil, cc,
-		"--target="+targetTriplet,
-		"--sysroot="+sysroot,
-		"-resource-dir="+resourceDir,
-		"--rtlib=compiler-rt",
-		"-fuse-ld=lld",
-		"-O2", "-static",
-		"-I"+includeDir,
-		checkerSource, libcrypto,
-		"-ldl", "-pthread", "-lm", "-o", checker,
-	); err != nil {
-		return err
-	}
-	programHeaders, err := commandOutput(nil, readelf, "-l", checker)
-	if err != nil {
-		return err
-	}
-	if strings.Contains(programHeaders, "INTERP") {
-		return errors.New("BoringCrypto verifier unexpectedly contains an ELF interpreter")
-	}
-	dynamic, err := commandOutput(nil, readelf, "-d", checker)
-	if err != nil && !strings.Contains(dynamic, "There is no dynamic section") {
-		return err
-	}
-	if strings.Contains(dynamic, "NEEDED") {
-		return errors.New("BoringCrypto verifier unexpectedly contains a dynamic dependency")
-	}
-	if err := runCommand(nil, checker); err != nil {
-		return err
-	}
-
-	return writeJSON(manifest, map[string]any{
-		"schema":                         1,
-		"backend":                        "boringssl",
-		"certificate":                    "CMVP #5296",
-		"module_name":                    "BoringCrypto",
-		"module_version":                 "2023042800",
-		"source_commit":                  "a430310d6563c0734ddafca7731570dfb683dc19",
-		"arch":                           arch,
-		"libc":                           "musl",
-		"musl_revision":                  muslRevision,
-		"libcrypto_sha256":               mustSHA256(libcrypto),
-		"libssl_sha256":                  mustSHA256(libssl),
-		"checker_sha256":                 mustSHA256(checker),
-		"linkage":                        "static",
-		"cmake":                          "3.27.4",
-		"go":                             "1.21.1",
-		"ninja":                          "1.11.1",
-		"operational_environment_status": "not-listed-on-cmvp-5296",
-		"service_indicator":              "per-service",
-	})
-}
-
 func validateOpenSSL(args []string) error {
-	if len(args) != 10 {
-		return fmt.Errorf("openssl: got %d arguments, want 10", len(args))
+	if len(args) != 16 {
+		return fmt.Errorf("openssl: got %d arguments, want 16", len(args))
 	}
 	opensslBin, fipsModule, config := absolute(args[0]), absolute(args[1]), absolute(args[2])
 	libcrypto, libssl, manifest := absolute(args[3]), absolute(args[4]), absolute(args[5])
 	arch, loader, sysroot, readelf := args[6], absolute(args[7]), absolute(args[8]), absolute(args[9])
+	emulator := optionalAbsolute(args[10])
+	certificate, moduleVersion, moduleArchiveSHA := args[11], args[12], args[13]
+	coreVersion, coreArchiveSHA := args[14], args[15]
 	expectedMachine := map[string]string{
 		"amd64": "Advanced Micro Devices X86-64",
 		"arm64": "AArch64",
@@ -200,13 +96,13 @@ func validateOpenSSL(args []string) error {
 	defer os.Remove(moduleConfig)
 	modulesDir := filepath.Dir(fipsModule)
 	libraryPath := sysroot + "/lib:" + sysroot + "/usr/lib"
-	if err := runCommand(map[string]string{
+	if err := runMuslCommand(emulator, map[string]string{
 		"OPENSSL_CONF":    "/dev/null",
 		"OPENSSL_MODULES": modulesDir,
 	}, loader, "--library-path", libraryPath, opensslBin, "fipsinstall", "-module", fipsModule, "-out", moduleConfig, "-pedantic"); err != nil {
 		return err
 	}
-	if err := runCommand(map[string]string{
+	if err := runMuslCommand(emulator, map[string]string{
 		"OPENSSL_CONF":     config,
 		"OPENSSL_MODULES":  modulesDir,
 		"FIPS_MODULE_CONF": moduleConfig,
@@ -214,28 +110,42 @@ func validateOpenSSL(args []string) error {
 		return err
 	}
 
+	operationalEnvironmentStatus := "not-asserted"
+	if certificate != "none" {
+		operationalEnvironmentStatus = "not-listed-on-referenced-certificate"
+	}
 	return writeJSON(manifest, map[string]any{
-		"schema":             1,
-		"backend":            "openssl",
-		"certificate":        "CMVP #4985",
-		"module_name":        "OpenSSL FIPS Provider",
-		"module_version":     "3.1.2",
-		"core_version":       "3.5.7",
-		"arch":               arch,
-		"libcrypto_sha256":   mustSHA256(libcrypto),
-		"libssl_sha256":      mustSHA256(libssl),
-		"fips_module_sha256": mustSHA256(fipsModule),
-		"linkage":            "static-core-dynamic-provider",
-		"service_indicator":  "provider-properties-fips=yes",
+		"schema":                         1,
+		"backend":                        "openssl",
+		"certificate_reference":          certificate,
+		"module_name":                    "OpenSSL FIPS Provider",
+		"module_version":                 moduleVersion,
+		"module_source_archive_sha256":   moduleArchiveSHA,
+		"core_version":                   coreVersion,
+		"core_source_archive_sha256":     coreArchiveSHA,
+		"arch":                           arch,
+		"libcrypto_sha256":               mustSHA256(libcrypto),
+		"libssl_sha256":                  mustSHA256(libssl),
+		"fips_module_sha256":             mustSHA256(fipsModule),
+		"linkage":                        "static-core-dynamic-provider",
+		"compliance_claim":               "none",
+		"evidence_scope":                 "build-and-runtime-checks-only",
+		"operational_environment_status": operationalEnvironmentStatus,
+		"service_indicator":              "provider-properties-fips=yes",
 	})
 }
 
 func validateOTP(args []string) error {
-	if len(args) != 9 {
-		return fmt.Errorf("otp: got %d arguments, want 9", len(args))
+	if len(args) != 11 {
+		return fmt.Errorf("otp: got %d arguments, want 11", len(args))
 	}
 	root, backend, loader, libcDir, sysroot := absolute(args[0]), args[1], absolute(args[2]), absolute(args[3]), absolute(args[4])
-	opensslConfig, fipsModule, fipsModuleConfig, stamp := absolute(args[5]), absolute(args[6]), absolute(args[7]), absolute(args[8])
+	emulator := optionalAbsolute(args[5])
+	if backend != "openssl" {
+		return fmt.Errorf("unsupported OTP crypto backend %q", backend)
+	}
+	opensslConfig, fipsModule, fipsModuleConfig, stamp := absolute(args[6]), absolute(args[7]), absolute(args[8]), absolute(args[9])
+	cryptoVersion := args[10]
 	runtimeRoot := filepath.Join(root, "opt/fips-elixir/lib/erlang")
 	beams, err := filepath.Glob(filepath.Join(runtimeRoot, "erts-*/bin/beam.smp"))
 	if err != nil {
@@ -264,21 +174,11 @@ func validateOTP(args []string) error {
 		"PROGNAME": "erl",
 		"EMU":      "beam",
 	}
-	var executable string
-	var commandArgs []string
-	if backend == "boringssl" {
-		executable = beam
-		commandArgs = []string{"--", "-root", runtimeRoot, "-bindir", bindir, "-progname", "erl", "--", "-home", work, "--", "-crypto", "fips_mode", "true", "-noshell", "-eval", boringEval}
-	} else if backend == "openssl" {
-		environment["OPENSSL_CONF"] = opensslConfig
-		environment["OPENSSL_MODULES"] = filepath.Dir(fipsModule)
-		environment["FIPS_MODULE_CONF"] = fipsModuleConfig
-		executable = loader
-		commandArgs = []string{"--library-path", libcDir + ":" + sysroot + "/usr/lib", beam, "--", "-root", runtimeRoot, "-bindir", bindir, "-progname", "erl", "--", "-home", work, "--", "-crypto", "fips_mode", "true", "-noshell", "-eval", openSSLEval}
-	} else {
-		return fmt.Errorf("unsupported OTP crypto backend %q", backend)
-	}
-	if err := runCommand(environment, executable, commandArgs...); err != nil {
+	environment["OPENSSL_CONF"] = opensslConfig
+	environment["OPENSSL_MODULES"] = filepath.Dir(fipsModule)
+	environment["FIPS_MODULE_CONF"] = fipsModuleConfig
+	commandArgs := []string{"--library-path", libcDir + ":" + sysroot + "/usr/lib", beam, "--", "-root", runtimeRoot, "-bindir", bindir, "-progname", "erl", "--", "-home", work, "--", "-crypto", "fips_mode", "true", "-noshell", "-eval", openSSLEval(cryptoVersion)}
+	if err := runMuslCommand(emulator, environment, loader, commandArgs...); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(stamp), 0o755); err != nil {
@@ -287,9 +187,9 @@ func validateOTP(args []string) error {
 	return os.WriteFile(stamp, []byte("OTP_FIPS_VERIFIED backend="+backend+"\n"), 0o644)
 }
 
-const boringEval = `{ok, _} = application:ensure_all_started(crypto), enabled = crypto:info_fips(), #{link_type := static, cryptolib_version_linked := Linked} = crypto:info(), true = string:find(Linked, "BoringSSL") =/= nomatch, false = crypto:enable_fips_mode(false), enabled = crypto:info_fips(), halt(0).`
-
-const openSSLEval = `{ok, _} = application:ensure_all_started(crypto), enabled = crypto:info_fips(), #{link_type := static, fips_provider_available := true, fips_provider_buildinfo := BuildInfo} = crypto:info(), true = string:find(BuildInfo, "3.1.2") =/= nomatch, halt(0).`
+func openSSLEval(version string) string {
+	return fmt.Sprintf(`{ok, _} = application:ensure_all_started(crypto), enabled = crypto:info_fips(), #{link_type := static, fips_provider_available := true, fips_provider_buildinfo := BuildInfo} = crypto:info(), true = string:find(BuildInfo, %q) =/= nomatch, Epmd = filename:join(os:getenv("BINDIR"), "epmd"), Port = open_port({spawn_executable, Epmd}, [{args, ["-help"]}, exit_status, stderr_to_stdout]), Wait = fun Read() -> receive {Port, {data, _}} -> Read(); {Port, {exit_status, _}} -> ok after 10000 -> erlang:error(port_timeout) end end, ok = Wait(), halt(0).`, version)
+}
 
 func absolute(path string) string {
 	if filepath.IsAbs(path) {
@@ -300,6 +200,22 @@ func absolute(path string) string {
 		panic(err)
 	}
 	return resolved
+}
+
+func optionalAbsolute(path string) string {
+	if path == "-" {
+		return ""
+	}
+	return absolute(path)
+}
+
+func runMuslCommand(emulator string, extraEnv map[string]string, loader string, args ...string) error {
+	executable := loader
+	if emulator != "" {
+		args = append([]string{loader}, args...)
+		executable = emulator
+	}
+	return runCommand(extraEnv, executable, args...)
 }
 
 func runCommand(extraEnv map[string]string, name string, args ...string) error {

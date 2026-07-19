@@ -1,5 +1,13 @@
 """Bzlmod extension that fetches exact, integrity-pinned FIPS build inputs."""
 
+load(
+    "//fips:versions.bzl",
+    "DEFAULT_OPENSSL_CORE_VERSION",
+    "DEFAULT_OPENSSL_FIPS_PROVIDER_VERSION",
+    "OPENSSL_CORE_RELEASES",
+    "OPENSSL_FIPS_PROVIDER_RELEASES",
+)
+
 _SOURCE_BUILD = """
 package(default_visibility = ["//visibility:public"])
 
@@ -12,20 +20,6 @@ exports_files(glob(["*"]))
 """
 
 _OTP_SOURCE_BUILD = _SOURCE_BUILD
-
-_SYSROOT_BUILD = """
-package(default_visibility = ["//visibility:public"])
-
-filegroup(
-    name = "sysroot",
-    srcs = glob(
-        ["**"],
-        exclude = ["lib/systemd/**"],
-    ),
-)
-
-exports_files(["usr/include/stdio.h"])
-"""
 
 _APK_SYSROOT_BUILD = """
 package(default_visibility = ["//visibility:public"])
@@ -43,6 +37,42 @@ filegroup(
 )
 
 exports_files(["usr/include/stdio.h"])
+"""
+
+_APK_TOOLCHAIN_BUILD = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "sysroot",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".PKGINFO",
+            ".SIGN.*",
+            "BUILD.bazel",
+        ],
+    ),
+)
+
+exports_files(["usr/bin/clang"])
+"""
+
+_APK_QEMU_BUILD = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "files",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".PKGINFO",
+            ".SIGN.*",
+            "BUILD.bazel",
+        ],
+    ),
+)
+
+exports_files(["usr/bin/qemu-aarch64"])
 """
 
 _APK_SYSROOTS = {
@@ -68,6 +98,38 @@ _APK_SYSROOTS = {
         ("llvm-libunwind-static-22.1.3-r0", "1c724758cd311a5eb190306475851047052aa4673d6b55001692f7f2ff0fc400"),
         ("compiler-rt-22.1.3-r0", "4339f4d0ea4e3c0825ce164e9b26289af894c852005f1f08dcd17709d1d9def5"),
     ],
+}
+
+_APK_EXEC_TOOLCHAINS = {
+    "fips_llvm_musl_amd64": [
+        ("binutils-2.45.1-r1", "9bd1cac7acb87fde3a89a75a524e4f2eeb994d9b3e0aa175a091d83e1d97f466"),
+        ("clang22-22.1.8-r0", "567059b3da3fcac554012143a67268cc14ed0122f15c76b5439dd655f074cc62"),
+        ("clang22-libs-22.1.8-r0", "f54f9d903e8bbd2ae496b15e74cb671a4c9ac4242c253d25696359f619309ede"),
+        ("jansson-2.15.0-r0", "cfe4ec8ea9b2136bb0c61770c36d2b635b606f2ac2039837a4866003a980d397"),
+        ("libffi-3.5.2-r1", "0ab19290ba2a4aea64613c16b9744853363cbd7a61159860eaf4bd255d470f56"),
+        ("libgcc-15.2.0-r8", "1be03f36320cd9ccef3be14d82b8e2839cce0754425c2e96bc57e9bf2f0c6b35"),
+        ("libstdc++-15.2.0-r8", "2650ea7696e541bd7407803db69250855fbc1f4d97a8f05fd76520f404e502e5"),
+        ("libxml2-2.13.9-r2", "4b2f986159c659f014b942fe8a5d70c67af475153ca826c3dd53389eea46a300"),
+        ("lld22-22.1.8-r0", "01194a5d4ef62d152c8737329f8553846f4566b81406031049f5b7e9ee14b5cf"),
+        ("lld22-libs-22.1.8-r0", "0dc5d7e41edefcd672e1d3fff3a074db790efd04f24cf7c138e1b711dd5da479"),
+        ("llvm22-libs-22.1.8-r1", "68b8aaf30be477d3e315a3c678c4d46be222cdf8f055be462278576dfea184e4"),
+        ("llvm22-linker-tools-22.1.8-r1", "38455546ff46ded38b074e67d8e1025ecd3e2e7b415613b5e7e97dfa94136703"),
+        ("musl-1.2.6-r2", "2aed6644a1332a63ee8873cc5b83e8c358bc6be45a7e16de9c9042e86cf30157"),
+        ("scudo-malloc-22.1.8-r0", "2ab7af7c4c98113c25d9060dba4e12792661a7cf3286a848e6d1aac49c377bb6"),
+        ("xz-libs-5.8.3-r0", "95162110d7b67e3e2fd243fa4a43f75170a9c4839c47f86bb5e34340a6dfe930"),
+        ("zlib-1.3.2-r0", "6e5dd88eb04341f673a40977a2d36bbe825ac772edddd2951192dcff76b9c49e"),
+        ("zstd-libs-1.5.7-r2", "5025e2207b44a131f1b2262761187d88500829c2171d566d37a1225246fe542e"),
+    ],
+}
+
+_APK_EXEC_TOOLS = {
+    "fips_qemu_aarch64": struct(
+        build_file_content = _APK_QEMU_BUILD,
+        packages = [
+            ("qemu-aarch64-11.0.2-r1", "3b3f92732d706e87bfd31a81186e47b42b50d742e55b13ead2c48043f3c76a26"),
+        ],
+        repository = "community",
+    ),
 }
 
 def _preserve_empty_directories(repository_ctx):
@@ -99,6 +161,23 @@ def _source_repo_impl(repository_ctx):
         canonical_id = "rules_fips:%s:%s" % (repository_ctx.name, repository_ctx.attr.sha256),
     )
     repository_ctx.file("BUILD.bazel", repository_ctx.attr.build_file_content)
+    repository_ctx.file(
+        "rules_fips_source.bzl",
+        """SOURCE = struct(
+    catalog_entry = %r,
+    version = %r,
+    sha256 = %r,
+    strip_prefix = %r,
+    urls = %r,
+)
+""" % (
+            repository_ctx.attr.catalog_entry,
+            repository_ctx.attr.version,
+            repository_ctx.attr.sha256,
+            repository_ctx.attr.strip_prefix,
+            repository_ctx.attr.urls,
+        ),
+    )
     if repository_ctx.attr.preserve_empty_dirs:
         empty_dirs = _preserve_empty_directories(repository_ctx)
         repository_ctx.file(
@@ -111,10 +190,12 @@ _source_repo = repository_rule(
     attrs = {
         "archive_type": attr.string(),
         "build_file_content": attr.string(mandatory = True),
+        "catalog_entry": attr.bool(),
         "preserve_empty_dirs": attr.bool(),
         "sha256": attr.string(mandatory = True),
         "strip_prefix": attr.string(),
         "urls": attr.string_list(mandatory = True),
+        "version": attr.string(mandatory = True),
     },
 )
 
@@ -123,58 +204,52 @@ def _apk_sysroot_repo_impl(repository_ctx):
     for package in repository_ctx.attr.packages:
         name, sha256 = package.split("|")
         repository_ctx.download_and_extract(
-            url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/%s/%s.apk" % (arch, name),
+            url = "https://dl-cdn.alpinelinux.org/alpine/%s/%s/%s/%s.apk" % (
+                repository_ctx.attr.branch,
+                repository_ctx.attr.repository,
+                arch,
+                name,
+            ),
             sha256 = sha256,
             type = "tar.gz",
-            canonical_id = "rules_fips:alpine-v3.24:%s:%s" % (arch, sha256),
+            canonical_id = "rules_fips:alpine-%s:%s:%s" % (repository_ctx.attr.branch, arch, sha256),
         )
-    repository_ctx.file("BUILD.bazel", _APK_SYSROOT_BUILD)
+    repository_ctx.file(
+        "BUILD.bazel",
+        repository_ctx.attr.build_file_content,
+    )
 
 _apk_sysroot_repo = repository_rule(
     implementation = _apk_sysroot_repo_impl,
     attrs = {
         "arch": attr.string(mandatory = True),
+        "branch": attr.string(default = "v3.24"),
+        "build_file_content": attr.string(mandatory = True),
         "packages": attr.string_list(mandatory = True),
+        "repository": attr.string(default = "main"),
     },
 )
 
 _DEFAULT_SOURCES = {
-    "boringssl_src": struct(
-        urls = [
-            "https://github.com/google/boringssl/archive/a430310d6563c0734ddafca7731570dfb683dc19.tar.gz",
-        ],
-        sha256 = "868930e812afa1967bed57f3cefcadc8a32e1d2207c76b934125189436179346",
-        strip_prefix = "boringssl-a430310d6563c0734ddafca7731570dfb683dc19",
-    ),
     "elixir_src": struct(
         urls = ["https://github.com/elixir-lang/elixir/archive/refs/tags/v1.20.2.tar.gz"],
         sha256 = "1a25bbf9a9016651fc332eecc02bb9681d0b8e722c2e256e73ddb88fbce6e6b0",
         strip_prefix = "elixir-1.20.2",
+        version = "1.20.2",
     ),
-    "openssl_core_src": struct(
-        urls = ["https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz"],
-        sha256 = "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
-        strip_prefix = "openssl-3.5.7",
-    ),
-    "openssl_fips_src": struct(
-        urls = ["https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz"],
-        sha256 = "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
-        strip_prefix = "openssl-3.1.2",
-    ),
+    "openssl_core_src": OPENSSL_CORE_RELEASES[DEFAULT_OPENSSL_CORE_VERSION],
+    "openssl_fips_src": OPENSSL_FIPS_PROVIDER_RELEASES[DEFAULT_OPENSSL_FIPS_PROVIDER_VERSION],
     "otp_src": struct(
         urls = ["https://github.com/erlang/otp/archive/refs/tags/OTP-29.0.3.tar.gz"],
         sha256 = "edef13778a449490bc183134e442a955b134d69c56075d97765d8d4951d8d2bb",
         strip_prefix = "otp-OTP-29.0.3",
-    ),
-    "linux_amd64_sysroot": struct(
-        urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d"],
-        sha256 = "52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d",
-        strip_prefix = "",
+        version = "29.0.3",
     ),
     "musl_src": struct(
         urls = ["https://git.musl-libc.org/cgit/musl/snapshot/musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083.tar.gz"],
         sha256 = "79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
         strip_prefix = "musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083",
+        version = "b306b16af15c89a04d8e0c55cac2dadbeb39c083",
     ),
 }
 
@@ -183,6 +258,12 @@ _source = tag_class(attrs = {
     "sha256": attr.string(mandatory = True),
     "strip_prefix": attr.string(mandatory = True),
     "urls": attr.string_list(mandatory = True),
+    "version": attr.string(mandatory = True),
+})
+
+_openssl = tag_class(attrs = {
+    "core_version": attr.string(default = DEFAULT_OPENSSL_CORE_VERSION),
+    "fips_provider_version": attr.string(default = DEFAULT_OPENSSL_FIPS_PROVIDER_VERSION),
 })
 
 def _validate_override(tag):
@@ -190,14 +271,23 @@ def _validate_override(tag):
         fail("unknown rules_fips source override: %s" % tag.name)
     if len(tag.sha256) != 64:
         fail("source %s must use a 64-character SHA-256 digest" % tag.name)
+    if not tag.version:
+        fail("source %s must provide its semantic version or immutable revision" % tag.name)
     if not tag.urls:
         fail("source %s must provide at least one URL" % tag.name)
     for url in tag.urls:
         if not url.startswith("https://"):
             fail("source %s URL must use HTTPS: %s" % (tag.name, url))
 
+def _validate_openssl_selection(tag):
+    if tag.core_version not in OPENSSL_CORE_RELEASES:
+        fail("OpenSSL core %s is not in the tested catalog; use a source override with an exact URL and SHA-256" % tag.core_version)
+    if tag.fips_provider_version not in OPENSSL_FIPS_PROVIDER_RELEASES:
+        fail("OpenSSL FIPS provider %s is not in the tested catalog; use a source override with an exact URL and SHA-256" % tag.fips_provider_version)
+
 def _fips_sources_impl(module_ctx):
     overrides = {}
+    openssl_selection = None
     for mod in module_ctx.modules:
         for tag in mod.tags.source:
             if not mod.is_root:
@@ -206,31 +296,67 @@ def _fips_sources_impl(module_ctx):
             if tag.name in overrides:
                 fail("source %s was overridden more than once" % tag.name)
             overrides[tag.name] = tag
+        for tag in mod.tags.openssl:
+            if not mod.is_root:
+                fail("only the root module may select an OpenSSL catalog entry")
+            if openssl_selection != None:
+                fail("OpenSSL catalog entry was selected more than once")
+            _validate_openssl_selection(tag)
+            openssl_selection = tag
 
-    for name, default in _DEFAULT_SOURCES.items():
+    sources = dict(_DEFAULT_SOURCES)
+    if openssl_selection != None:
+        for name in ["openssl_core_src", "openssl_fips_src"]:
+            if name in overrides:
+                fail("OpenSSL catalog selection cannot be combined with a %s source override" % name)
+        sources["openssl_core_src"] = OPENSSL_CORE_RELEASES[openssl_selection.core_version]
+        sources["openssl_fips_src"] = OPENSSL_FIPS_PROVIDER_RELEASES[openssl_selection.fips_provider_version]
+
+    for name, default in sources.items():
         source = overrides.get(name, default)
         _source_repo(
             name = name,
-            build_file_content = (
-                _SYSROOT_BUILD
-                if name.endswith("_sysroot")
-                else _OTP_SOURCE_BUILD if name == "otp_src" else _SOURCE_BUILD
-            ),
+            build_file_content = _OTP_SOURCE_BUILD if name == "otp_src" else _SOURCE_BUILD,
+            catalog_entry = name not in overrides,
             preserve_empty_dirs = name == "otp_src",
             sha256 = source.sha256,
             strip_prefix = source.strip_prefix,
-            archive_type = "tar.xz" if name.endswith("_sysroot") else "",
+            archive_type = "",
             urls = source.urls,
+            version = source.version,
         )
 
     for name, packages in _APK_SYSROOTS.items():
         _apk_sysroot_repo(
             name = name,
             arch = "x86_64" if name == "musl_amd64_sysroot" else "aarch64",
+            build_file_content = _APK_SYSROOT_BUILD,
             packages = ["%s|%s" % package for package in packages],
+        )
+
+    for name, packages in _APK_EXEC_TOOLCHAINS.items():
+        _apk_sysroot_repo(
+            name = name,
+            arch = "x86_64",
+            branch = "edge",
+            build_file_content = _APK_TOOLCHAIN_BUILD,
+            packages = ["%s|%s" % package for package in packages],
+        )
+
+    for name, tool in _APK_EXEC_TOOLS.items():
+        _apk_sysroot_repo(
+            name = name,
+            arch = "x86_64",
+            branch = "edge",
+            build_file_content = tool.build_file_content,
+            packages = ["%s|%s" % package for package in tool.packages],
+            repository = tool.repository,
         )
 
 fips_sources = module_extension(
     implementation = _fips_sources_impl,
-    tag_classes = {"source": _source},
+    tag_classes = {
+        "openssl": _openssl,
+        "source": _source,
+    },
 )

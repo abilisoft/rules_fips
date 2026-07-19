@@ -63,6 +63,8 @@ type runtimeManifest struct {
 	PackagedELFCount             int    `json:"packaged_elf_count"`
 	SharedObjects                int    `json:"shared_objects"`
 	OperationalEnvironmentStatus string `json:"operational_environment_status"`
+	ComplianceClaim              string `json:"compliance_claim"`
+	EvidenceScope                string `json:"evidence_scope"`
 }
 
 func main() {
@@ -95,7 +97,7 @@ func parseArgs(args []string) (config, error) {
 		launcher:       args[12],
 		cryptoManifest: args[13],
 	}
-	if cfg.backend != "openssl" && cfg.backend != "boringssl" {
+	if cfg.backend != "openssl" {
 		return config{}, fmt.Errorf("unsupported backend %q", cfg.backend)
 	}
 	for index := 14; index < len(args); index += 2 {
@@ -109,10 +111,10 @@ func parseArgs(args []string) (config, error) {
 
 func packageRuntime(cfg config) error {
 	entries := make(map[string]archiveEntry)
-	if err := addTree(entries, cfg.otpTree, cfg.backend, false); err != nil {
+	if err := addTree(entries, cfg.otpTree, false); err != nil {
 		return fmt.Errorf("add OTP tree: %w", err)
 	}
-	if err := addTree(entries, cfg.elixirTree, cfg.backend, true); err != nil {
+	if err := addTree(entries, cfg.elixirTree, true); err != nil {
 		return fmt.Errorf("add Elixir tree: %w", err)
 	}
 	if err := addSource(entries, installPrefix+"/lib/fips_boot/ebin/"+filepath.Base(cfg.bootBeam), cfg.bootBeam); err != nil {
@@ -148,17 +150,14 @@ func packageRuntime(cfg config) error {
 		Prefix:           "/opt/fips-elixir",
 		Libc:             "musl",
 		MuslRevision:     cfg.muslRevision,
-		CryptoLinkage:    "static",
+		CryptoLinkage:    "static-core-dynamic-provider",
+		NativeLinkage:    "musl-dynamic-bundled-loader",
 		PackagedELFCount: elfCount,
 		SharedObjects:    sharedObjects,
+		ComplianceClaim:  "none",
+		EvidenceScope:    "build-and-runtime-checks-only",
 	}
-	if cfg.backend == "boringssl" {
-		manifest.NativeLinkage = "fully-static"
-		manifest.OperationalEnvironmentStatus = "not-listed-on-cmvp-5296"
-	} else {
-		manifest.NativeLinkage = "musl-dynamic-bundled-loader"
-		manifest.OperationalEnvironmentStatus = "not-listed-on-cmvp-4985"
-	}
+	manifest.OperationalEnvironmentStatus = "not-asserted"
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode runtime manifest: %w", err)
@@ -175,7 +174,7 @@ func packageRuntime(cfg config) error {
 	return nil
 }
 
-func addTree(entries map[string]archiveEntry, root, backend string, excludeElixirLaunchers bool) error {
+func addTree(entries map[string]archiveEntry, root string, excludeElixirLaunchers bool) error {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("resolve tree root: %w", err)
@@ -195,7 +194,7 @@ func addTree(entries map[string]archiveEntry, root, backend string, excludeElixi
 		if excludeElixirLaunchers && isElixirLauncher(destination) {
 			return nil
 		}
-		if omitted(destination, backend) {
+		if omitted(destination) {
 			if dirEntry.IsDir() {
 				return fs.SkipDir
 			}
@@ -324,12 +323,19 @@ func addSymlink(entries map[string]archiveEntry, destination, target string) err
 	return nil
 }
 
-func omitted(name, backend string) bool {
+func omitted(name string) bool {
 	base := path.Base(name)
 	if strings.HasSuffix(base, ".a") || strings.HasSuffix(base, ".la") {
 		return true
 	}
-	if backend == "boringssl" && (strings.HasSuffix(base, ".so") || strings.Contains(base, ".so.")) {
+	if strings.Contains(name, "/lib/crypto-") &&
+		(base == "crypto.so" || base == "otp_test_engine.so") {
+		return true
+	}
+	if strings.Contains(name, "/lib/asn1-") && base == "asn1rt_nif.so" {
+		return true
+	}
+	if base == "yielding_c_fun" {
 		return true
 	}
 	return false
@@ -391,17 +397,13 @@ func auditELF(entries map[string]archiveEntry, cfg config) (int, int, error) {
 		if closeErr != nil {
 			return 0, 0, fmt.Errorf("close ELF %s: %w", name, closeErr)
 		}
-		if cfg.backend == "boringssl" {
-			if interpreter != "" {
-				return 0, 0, fmt.Errorf("packaged ELF contains an interpreter: %s -> %s", name, interpreter)
+		if interpreter != "" {
+			if interpreter != "/opt/fips-elixir/lib/"+cfg.loaderName {
+				return 0, 0, fmt.Errorf("packaged ELF uses an external interpreter: %s -> %s", name, interpreter)
 			}
-			if len(libraries) != 0 {
-				return 0, 0, fmt.Errorf("packaged ELF contains dynamic dependencies: %s -> %s", name, strings.Join(libraries, ", "))
+			if !dynamicInterpreterAllowed(name) {
+				return 0, 0, fmt.Errorf("packaged helper is not relocatable: %s -> %s", name, interpreter)
 			}
-			continue
-		}
-		if interpreter != "" && interpreter != "/opt/fips-elixir/lib/"+cfg.loaderName {
-			return 0, 0, fmt.Errorf("packaged ELF uses an external interpreter: %s -> %s", name, interpreter)
 		}
 		for _, library := range libraries {
 			if library != "libc.so" && library != cfg.libcName {
@@ -412,10 +414,14 @@ func auditELF(entries map[string]archiveEntry, cfg config) (int, int, error) {
 	if elfCount == 0 {
 		return 0, 0, fmt.Errorf("package contains no ELF files")
 	}
-	if cfg.backend == "boringssl" {
-		sharedObjects = 0
-	}
 	return elfCount, sharedObjects, nil
+}
+
+func dynamicInterpreterAllowed(name string) bool {
+	if name == installPrefix+"/bin/openssl" {
+		return true
+	}
+	return strings.HasPrefix(name, installPrefix+"/lib/erlang/erts-") && path.Base(name) == "beam.smp"
 }
 
 func elfInterpreter(binary *elf.File) (string, error) {

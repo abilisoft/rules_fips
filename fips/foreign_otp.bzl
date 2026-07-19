@@ -7,10 +7,46 @@ load(
     "FipsOtpBootstrapInfo",
     "FipsOtpRuntimeInfo",
 )
+load("//fips:source_versions.bzl", "OTP_SOURCE")
 
 _TOOLCHAIN_TYPE = "//fips:toolchain_type"
 _TARGET_AMD64 = "//fips/platforms:target_amd64"
 _TARGET_ARM64 = "//fips/platforms:target_arm64"
+
+def _llvm_tool(name):
+    return "$(execpath //fips/toolchains:llvm_musl/bin/%s)" % name
+
+def _toolbox_shell():
+    return "$(execpath //fips/toolchains:foreign_toolbox_shell)"
+
+def _foreign_path(prefix = None):
+    paths = []
+    if prefix != None:
+        paths.append(prefix)
+    paths.extend([
+        "$$(dirname %s)" % _toolbox_shell(),
+        "$$(dirname $(execpath //fips/toolchains:foreign_perl))",
+        "/bin",
+    ])
+    return ":".join(paths)
+
+def _llvm_build_data():
+    return [
+        "//fips/toolchains:foreign_perl",
+        "//fips/toolchains:foreign_toolbox",
+        "//fips/toolchains:foreign_toolbox_shell",
+        "//fips/toolchains:llvm_musl",
+        "//fips/toolchains:llvm_musl/bin/ar",
+        "//fips/toolchains:llvm_musl/bin/clang",
+        "//fips/toolchains:llvm_musl/bin/clang++",
+        "//fips/toolchains:llvm_musl/bin/ld.lld",
+        "//fips/toolchains:llvm_musl/bin/nm",
+        "//fips/toolchains:llvm_musl/bin/objcopy",
+        "//fips/toolchains:llvm_musl/bin/objdump",
+        "//fips/toolchains:llvm_musl/bin/ranlib",
+        "//fips/toolchains:llvm_musl/bin/readelf",
+        "//fips/toolchains:llvm_musl/bin/strip",
+    ]
 
 def _directory_named(files, basename):
     for file in files:
@@ -32,40 +68,46 @@ def _sysroot(marker):
 def _dirname(label):
     return "$$(dirname $(execpath %s))" % label
 
-def _parent(label):
-    return "$$(dirname $$(dirname $(execpath %s)))" % label
-
 def _action_path(path):
     return path if path.startswith("/") else "/proc/self/cwd/" + path
 
 def _bootstrap_env():
-    clang_root = "$(execpath @fips_clang_amd64//sysroot:sysroot)"
-    sysroot = _sysroot("@linux_amd64_sysroot//:usr/include/stdio.h")
-    resource_dir = clang_root + "/lib/clang/22"
-    compiler_rt = _sysroot("@musl_amd64_sysroot//:usr/include/stdio.h") + "/usr/lib/llvm22/lib/clang/22/lib/x86_64-alpine-linux-musl/libclang_rt.builtins-x86_64.a"
+    sysroot = _sysroot("@musl_amd64_sysroot//:usr/include/stdio.h")
+    resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
     compile_flags = " ".join([
-        "--target=x86_64-linux-gnu",
+        "--target=x86_64-alpine-linux-musl",
         "--sysroot=" + sysroot,
         "-resource-dir=" + resource_dir,
+        "-B" + sysroot + "/usr/lib/",
         "-O2",
     ])
+    link_flags = " ".join([
+        compile_flags,
+        "--rtlib=compiler-rt",
+        "--unwindlib=libunwind",
+        "-fuse-ld=" + _llvm_tool("ld.lld"),
+        "-static",
+        "-no-pie",
+    ])
     return {
-        "AR": clang_root + "/bin/llvm-ar",
-        "CC": clang_root + "/bin/clang",
+        "AR": _llvm_tool("ar"),
+        "CC": _llvm_tool("clang"),
         "CFLAGS": compile_flags,
-        "CXX": clang_root + "/bin/clang++",
+        "CONFIG_SHELL": _toolbox_shell(),
+        "CXX": _llvm_tool("clang++"),
         "CXXFLAGS": compile_flags,
         "HOME": "$$BUILD_TMPDIR",
-        "LD": clang_root + "/bin/ld.lld",
-        "LDFLAGS": compile_flags + " -fuse-ld=lld -no-pie",
-        "LD_LIBRARY_PATH": "$(execpath //fips/toolchains:llvm_libxml2_amd64)/usr/lib/x86_64-linux-gnu:$(execpath //fips/toolchains:llvm_libicu_amd64)/usr/lib/x86_64-linux-gnu",
-        "LIBS": compiler_rt,
-        "NM": clang_root + "/bin/llvm-nm",
-        "OBJCOPY": clang_root + "/bin/llvm-objcopy",
-        "OBJDUMP": clang_root + "/bin/llvm-objdump",
-        "READELF": clang_root + "/bin/llvm-readelf",
+        "LD": _llvm_tool("ld.lld"),
+        "LDFLAGS": link_flags,
+        "NM": _llvm_tool("nm"),
+        "OBJCOPY": _llvm_tool("objcopy"),
+        "OBJDUMP": _llvm_tool("objdump"),
+        "PATH": _foreign_path(),
+        "PERL": "$(execpath //fips/toolchains:foreign_perl)",
+        "READELF": _llvm_tool("readelf"),
         "SOURCE_DATE_EPOCH": "0",
-        "STRIP": clang_root + "/bin/llvm-strip",
+        "SHELL": _toolbox_shell(),
+        "STRIP": _llvm_tool("strip"),
         "TMPDIR": "$$BUILD_TMPDIR",
     }
 
@@ -76,7 +118,7 @@ def _otp_bootstrap_finalize_impl(ctx):
     erlc = ctx.actions.declare_file(ctx.label.name + "_bin/erlc")
     escript = ctx.actions.declare_file(ctx.label.name + "_bin/escript")
     go_state = ctx.actions.declare_directory(ctx.label.name + "_bin/go_state")
-    otp_build_triplet = "x86_64-pc-linux-gnu"
+    otp_build_triplet = "x86_64-alpine-linux-musl"
 
     ctx.actions.run(
         arguments = [
@@ -134,7 +176,7 @@ _otp_bootstrap_finalize = rule(
             default = "//tools/otp_bootstrap_exec:main.go",
         ),
         "foreign": attr.label(mandatory = True),
-        "otp_version": attr.string(default = "29.0.3"),
+        "otp_version": attr.string(default = OTP_SOURCE.version),
     },
     toolchains = [_TOOLCHAIN_TYPE],
 )
@@ -187,27 +229,32 @@ def _openssl_module_config_impl(ctx):
     openssl_bin = _file_named(runtime_files, "openssl")
     fips_module = _file_named(runtime_files, "fips.so")
     output = ctx.actions.declare_file(ctx.label.name + "/fipsmodule.cnf")
+    arguments = [
+        "--library-path",
+        platform.musl_libc_file.dirname + ":" + platform.sysroot_path + "/usr/lib",
+        openssl_bin.path,
+        "fipsinstall",
+        "-module",
+        fips_module.path,
+        "-out",
+        output.path,
+        "-pedantic",
+    ]
+    executable = platform.musl_loader_file
+    if platform.arch == "arm64":
+        arguments = [platform.musl_loader_file.path] + arguments
+        executable = platform.qemu_aarch64_file
     ctx.actions.run(
-        arguments = [
-            "--library-path",
-            platform.musl_libc_file.dirname + ":" + platform.sysroot_path + "/usr/lib",
-            openssl_bin.path,
-            "fipsinstall",
-            "-module",
-            fips_module.path,
-            "-out",
-            output.path,
-            "-pedantic",
-        ],
+        arguments = arguments,
         env = {
             "OPENSSL_CONF": "/dev/null",
             "OPENSSL_MODULES": fips_module.dirname,
         },
-        executable = platform.musl_loader_file,
+        executable = executable,
         execution_requirements = {"block-network": "1"},
         inputs = depset(
             direct = [openssl_bin, fips_module],
-            transitive = [platform.sysroot_files],
+            transitive = [platform.qemu_aarch64_files, platform.sysroot_files],
         ),
         mnemonic = "OpenSslFipsModuleConfig",
         outputs = [output],
@@ -223,8 +270,15 @@ _openssl_module_config = rule(
     toolchains = [_TOOLCHAIN_TYPE],
 )
 
-def otp_native_bootstrap(name, otp_version = "29.0.3", visibility = None, tags = None):
-    """Builds OTP's native bootstrap with configure_make."""
+def otp_native_bootstrap(name, otp_version = OTP_SOURCE.version, visibility = None, tags = None):
+    """Builds OTP's native bootstrap with configure_make.
+
+    Args:
+      name: Bootstrap target name.
+      otp_version: OTP version recorded in the provider.
+      visibility: Optional target visibility.
+      tags: Optional tags applied to generated targets.
+    """
     foreign_name = name + "_foreign"
     common = {}
     if tags != None:
@@ -235,22 +289,17 @@ def otp_native_bootstrap(name, otp_version = "29.0.3", visibility = None, tags =
         args = [
             "-s",
             "-j8",
-            "RANLIB=$$EXT_BUILD_ROOT$$/$(execpath @fips_clang_amd64//sysroot:sysroot)/bin/llvm-ranlib",
+            "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
         ],
-        build_data = [
-            "@fips_clang_amd64//sysroot:sysroot",
-            "@linux_amd64_sysroot//:sysroot",
-            "@linux_amd64_sysroot//:usr/include/stdio.h",
+        build_data = _llvm_build_data() + [
             "@musl_amd64_sysroot//:sysroot",
             "@musl_amd64_sysroot//:usr/include/stdio.h",
             "//fips/private:fips_artifact_validator",
-            "//fips/toolchains:llvm_libicu_amd64",
-            "//fips/toolchains:llvm_libxml2_amd64",
         ],
         configure_in_place = True,
         configure_options = [
-            "--build=x86_64-linux-gnu",
-            "--host=x86_64-linux-gnu",
+            "--build=x86_64-alpine-linux-musl",
+            "--host=x86_64-alpine-linux-musl",
             "--enable-bootstrap-only",
             "--enable-builtin-zlib",
             "--disable-jit",
@@ -283,8 +332,7 @@ def otp_native_bootstrap(name, otp_version = "29.0.3", visibility = None, tags =
         **final_args
     )
 
-def _target_env(marker, triplet, loader, backend, aliases):
-    clang_root = "$(execpath @fips_clang_amd64//sysroot:sysroot)"
+def _target_env(marker, triplet, loader, aliases):
     sysroot = _sysroot(marker)
     resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
     compile_flags = " ".join([
@@ -294,83 +342,65 @@ def _target_env(marker, triplet, loader, backend, aliases):
         "-B" + sysroot + "/usr/lib/",
         "-O2",
     ])
-    link_flags = " ".join([
+    base_link_flags = " ".join([
         compile_flags,
         "--rtlib=compiler-rt",
         "--unwindlib=libunwind",
-        "-fuse-ld=lld",
+        "-fuse-ld=" + _llvm_tool("ld.lld"),
         "-Wl,-S",
         "-Wl,-z,relro,-z,now",
     ])
-    if backend == "boringssl":
-        link_flags += " -static -no-pie"
-        libs = " ".join([
-            "-Wl,--start-group",
-            "$(execpath %s)" % aliases.libssl,
-            "$(execpath %s)" % aliases.libcrypto,
-            "-lc++",
-            "-lc++abi",
-            "-lunwind",
-            "-Wl,--end-group",
-            "-ldl",
-            "-pthread",
-            "-lm",
-        ])
-    else:
-        link_flags += " -Wl,--dynamic-linker=/opt/fips-elixir/lib/%s -Wl,-rpath,/opt/fips-elixir/lib" % loader
-        libs = " ".join([
-            "-Wl,--start-group",
-            "$(execpath %s)" % aliases.libssl,
-            "$(execpath %s)" % aliases.libcrypto,
-            "-Wl,--end-group",
-            "-ldl",
-            "-pthread",
-            "-lm",
-        ])
+    link_flags = base_link_flags + " -Wl,--dynamic-linker=/opt/fips-elixir/lib/%s -Wl,-rpath,/opt/fips-elixir/lib" % loader
+    libs = " ".join([
+        "-Wl,--start-group",
+        "$(execpath %s)" % aliases.libssl,
+        "$(execpath %s)" % aliases.libcrypto,
+        "-Wl,--end-group",
+        "-ldl",
+        "-pthread",
+        "-lm",
+    ])
 
     env = {
-        "AR": clang_root + "/bin/llvm-ar",
+        "AR": _llvm_tool("ar"),
         "BOOTSTRAP_BIN": _dirname(aliases.erl),
-        "CC": clang_root + "/bin/clang",
+        "CC": _llvm_tool("clang"),
         "CFLAGS": compile_flags,
-        "CXX": clang_root + "/bin/clang++",
+        "CONFIG_SHELL": _toolbox_shell(),
+        "CXX": _llvm_tool("clang++"),
         "CXXFLAGS": compile_flags + " -stdlib=libc++",
         "HOME": "$$BUILD_TMPDIR",
-        "LD": clang_root + "/bin/ld.lld",
+        "LD": _llvm_tool("ld.lld"),
         "LDFLAGS": link_flags,
-        "LD_LIBRARY_PATH": "$(execpath //fips/toolchains:llvm_libxml2_amd64)/usr/lib/x86_64-linux-gnu:$(execpath //fips/toolchains:llvm_libicu_amd64)/usr/lib/x86_64-linux-gnu",
         "LIBS": libs,
-        "NM": clang_root + "/bin/llvm-nm",
-        "OBJCOPY": clang_root + "/bin/llvm-objcopy",
-        "OBJDUMP": clang_root + "/bin/llvm-objdump",
+        "NM": _llvm_tool("nm"),
+        "OBJCOPY": _llvm_tool("objcopy"),
+        "OBJDUMP": _llvm_tool("objdump"),
         "OTP_BOOTSTRAP_ROOT": "$(execpath %s)" % aliases.root,
-        "PATH": _dirname(aliases.erl) + ":/bin:/usr/bin",
-        "READELF": clang_root + "/bin/llvm-readelf",
+        "PATH": _foreign_path(_dirname(aliases.erl)),
+        "PERL": "$(execpath //fips/toolchains:foreign_perl)",
+        "READELF": _llvm_tool("readelf"),
         "SOURCE_DATE_EPOCH": "0",
+        "SHELL": _toolbox_shell(),
         "STATIC_CFLAGS": compile_flags,
-        "STRIP": clang_root + "/bin/llvm-strip",
+        "STRIP": _llvm_tool("strip"),
+        "STATIC_LDFLAGS": base_link_flags + " -static -no-pie",
         "TMPDIR": "$$BUILD_TMPDIR",
         "erl_xcomp_bigendian": "no",
         "erl_xcomp_double_middle_endian": "no",
         "erl_xcomp_isysroot": sysroot,
         "erl_xcomp_sysroot": sysroot,
     }
-    if backend == "boringssl":
-        compat_include = "-I" + _parent("//compat/boringssl:openssl/modes.h")
-        env["CFLAGS"] = compat_include + " " + compile_flags
-        env["CPPFLAGS"] = compat_include
-        env["STATIC_CFLAGS"] = compat_include + " " + compile_flags
-    else:
-        env.update({
-            "FIPS_MODULE_CONF": "$(execpath %s)" % aliases.module_config,
-            "OPENSSL_CONF": "$(execpath %s)" % aliases.openssl_config,
-            "OPENSSL_MODULES": _dirname(aliases.fips_module),
-        })
+    env.update({
+        "FIPS_MODULE_CONF": "$(execpath %s)" % aliases.module_config,
+        "OPENSSL_CONF": "$(execpath %s)" % aliases.openssl_config,
+        "OPENSSL_MODULES": _dirname(aliases.fips_module),
+    })
     return env
 
-def _target_options(marker, triplet, aliases, backend):
+def _target_options(triplet, aliases):
     options = [
-        "--build=x86_64-linux-gnu",
+        "--build=x86_64-alpine-linux-musl",
         "--host=" + triplet,
         "--prefix=/opt/fips-elixir",
         "--with-ssl=" + _dirname(aliases.libssl),
@@ -395,13 +425,13 @@ def _target_options(marker, triplet, aliases, backend):
         "--without-odbc",
         "--without-runtime_tools",
     ]
-    if backend == "boringssl":
-        options.extend(["--disable-evp-dh", "--disable-evp-hmac"])
     return options
 
 def _otp_target_finalize_impl(ctx):
     platform = ctx.toolchains[_TOOLCHAIN_TYPE].fips
     crypto = ctx.attr.crypto[FipsCryptoInfo]
+    if crypto.backend != "openssl":
+        fail("OTP FIPS runtime requires the OpenSSL backend")
     foreign_files = ctx.attr.foreign[DefaultInfo].files.to_list()
     root = _directory_named(foreign_files, "runtime")
     tools_ebin = _directory_named(foreign_files, "tools_ebin")
@@ -419,10 +449,12 @@ def _otp_target_finalize_impl(ctx):
             _action_path(platform.musl_loader_path),
             _action_path(platform.musl_libc_file.dirname),
             _action_path(platform.sysroot_path),
+            _action_path(platform.qemu_aarch64_file.path) if platform.arch == "arm64" else "-",
             _action_path(openssl_config.path) if openssl_config else "-",
             _action_path(fips_module.path) if fips_module else "-",
             _action_path(module_config.path) if module_config else "-",
             _action_path(stamp.path),
+            crypto.module_version,
         ],
         env = {
             "LANG": "C.UTF-8",
@@ -436,7 +468,7 @@ def _otp_target_finalize_impl(ctx):
                 root,
                 tools_ebin,
             ] + runtime_files + ([module_config] if module_config else []),
-            transitive = [platform.sysroot_files],
+            transitive = [platform.qemu_aarch64_files, platform.sysroot_files],
         ),
         mnemonic = "OtpFipsRuntimeValidate",
         outputs = [stamp],
@@ -458,7 +490,7 @@ _otp_target_finalize = rule(
         "crypto": attr.label(mandatory = True, providers = [FipsCryptoInfo]),
         "foreign": attr.label(mandatory = True),
         "module_config": attr.label(allow_single_file = True),
-        "otp_version": attr.string(default = "29.0.3"),
+        "otp_version": attr.string(default = OTP_SOURCE.version),
         "validator": attr.label(
             allow_single_file = True,
             cfg = "exec",
@@ -473,14 +505,19 @@ def otp_fips_runtime(
         name,
         bootstrap,
         crypto,
-        backend = "openssl",
-        otp_version = "29.0.3",
+        otp_version = OTP_SOURCE.version,
         visibility = None,
         tags = None):
-    """Builds target OTP with configure_make and validates FIPS at runtime."""
-    if backend not in ["openssl", "boringssl"]:
-        fail("unsupported OTP FIPS backend: %s" % backend)
+    """Builds target OTP with configure_make and validates FIPS at runtime.
 
+    Args:
+      name: Target OTP name.
+      bootstrap: Label providing the native OTP bootstrap.
+      crypto: Label providing the OpenSSL build.
+      otp_version: OTP version recorded in evidence.
+      visibility: Optional target visibility.
+      tags: Optional tags applied to generated targets.
+    """
     common = {}
     if tags != None:
         common["tags"] = tags
@@ -513,22 +550,13 @@ def otp_fips_runtime(
         aliases.libssl,
         aliases.root,
     ]
-    build_data = [
-        "@fips_clang_amd64//sysroot:sysroot",
+    build_data = _llvm_build_data() + [
         "//fips/private:fips_artifact_validator",
-        "//fips/toolchains:llvm_libicu_amd64",
-        "//fips/toolchains:llvm_libxml2_amd64",
     ]
-    if backend == "boringssl":
-        data.extend([
-            "//compat/boringssl:headers",
-            "//compat/boringssl:openssl/modes.h",
-        ])
-    else:
-        _crypto_artifact(name = name + "_crypto_fips_module", crypto = crypto, kind = "fips.so", **common)
-        _crypto_artifact(name = name + "_crypto_openssl_config", crypto = crypto, kind = "openssl-fips.cnf", **common)
-        _openssl_module_config(name = name + "_module_config", crypto = crypto, **common)
-        data.extend([aliases.fips_module, aliases.module_config, aliases.openssl_config])
+    _crypto_artifact(name = name + "_crypto_fips_module", crypto = crypto, kind = "fips.so", **common)
+    _crypto_artifact(name = name + "_crypto_openssl_config", crypto = crypto, kind = "openssl-fips.cnf", **common)
+    _openssl_module_config(name = name + "_module_config", crypto = crypto, **common)
+    data.extend([aliases.fips_module, aliases.module_config, aliases.openssl_config])
     data += select({
         _TARGET_AMD64: ["@musl_amd64_sysroot//:sysroot", "@musl_amd64_sysroot//:usr/include/stdio.h"],
         _TARGET_ARM64: ["@musl_arm64_sysroot//:sysroot", "@musl_arm64_sysroot//:usr/include/stdio.h"],
@@ -543,8 +571,9 @@ def otp_fips_runtime(
                 "-j8",
                 "BOOT_PREFIX=$$BOOTSTRAP_BIN$$:",
                 "INSTALL_PREFIX=",
-                "OVERRIDE_TARGET=x86_64-alpine-linux-musl",
-                "RANLIB=$$EXT_BUILD_ROOT$$/$(execpath @fips_clang_amd64//sysroot:sysroot)/bin/llvm-ranlib",
+                "OVERRIDE_TARGET=x86_64-pc-linux-musl",
+                "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
+                "CS_LDFLAGS=\"$$STATIC_LDFLAGS$$\"",
             ],
             _TARGET_ARM64: [
                 "-s",
@@ -552,23 +581,20 @@ def otp_fips_runtime(
                 "BOOT_PREFIX=$$BOOTSTRAP_BIN$$:",
                 "INSTALL_PREFIX=",
                 "OVERRIDE_TARGET=aarch64-alpine-linux-musl",
-                "RANLIB=$$EXT_BUILD_ROOT$$/$(execpath @fips_clang_amd64//sysroot:sysroot)/bin/llvm-ranlib",
+                "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
+                "CS_LDFLAGS=\"$$STATIC_LDFLAGS$$\"",
             ],
         }),
         build_data = build_data,
         configure_in_place = True,
         configure_options = select({
             _TARGET_AMD64: _target_options(
-                "@musl_amd64_sysroot//:usr/include/stdio.h",
-                "x86_64-alpine-linux-musl",
+                "x86_64-linux-musl",
                 aliases,
-                backend,
             ),
             _TARGET_ARM64: _target_options(
-                "@musl_arm64_sysroot//:usr/include/stdio.h",
                 "aarch64-alpine-linux-musl",
                 aliases,
-                backend,
             ),
         }),
         data = data,
@@ -577,14 +603,12 @@ def otp_fips_runtime(
                 "@musl_amd64_sysroot//:usr/include/stdio.h",
                 "x86_64-alpine-linux-musl",
                 "ld-musl-x86_64.so.1",
-                backend,
                 aliases,
             ),
             _TARGET_ARM64: _target_env(
                 "@musl_arm64_sysroot//:usr/include/stdio.h",
                 "aarch64-alpine-linux-musl",
                 "ld-musl-aarch64.so.1",
-                backend,
                 aliases,
             ),
         }),
@@ -597,6 +621,14 @@ def otp_fips_runtime(
         targets = [
             "-C lib ERL_TOP=$$BUILD_TMPDIR$$ BUILD_STATIC_LIBS=1 TYPE=opt static_lib",
             "",
+            "-C lib/erl_interface/src ERL_TOP=$$BUILD_TMPDIR$$ clean",
+            "-C lib/erl_interface/src ERL_TOP=$$BUILD_TMPDIR$$ LDFLAGS=\"$$STATIC_LDFLAGS$$\" opt",
+            "-C erts/etc/common ERL_TOP=$$BUILD_TMPDIR$$ clean",
+            "-C erts/etc/common ERL_TOP=$$BUILD_TMPDIR$$ LDFLAGS=\"$$STATIC_LDFLAGS$$\"",
+            "-C erts/epmd/src ERL_TOP=$$BUILD_TMPDIR$$ clean",
+            "-C erts/epmd/src ERL_TOP=$$BUILD_TMPDIR$$ LDFLAGS=\"$$STATIC_LDFLAGS$$\"",
+            "-C lib/os_mon/c_src ERL_TOP=$$BUILD_TMPDIR$$ clean",
+            "-C lib/os_mon/c_src ERL_TOP=$$BUILD_TMPDIR$$ LDFLAGS=\"$$STATIC_LDFLAGS$$\" opt",
             "install DESTDIR=$$BUILD_TMPDIR$$/stage/runtime",
         ],
         **common
@@ -608,8 +640,7 @@ def otp_fips_runtime(
         "foreign": ":" + foreign_name,
         "otp_version": otp_version,
     })
-    if backend == "openssl":
-        final_args["module_config"] = aliases.module_config
+    final_args["module_config"] = aliases.module_config
     if visibility != None:
         final_args["visibility"] = visibility
     _otp_target_finalize(name = name, **final_args)

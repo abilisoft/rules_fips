@@ -1,6 +1,7 @@
 """Static target launchers that enforce FIPS startup invariants."""
 
 load("//fips:providers.bzl", "FipsLauncherInfo")
+load("//fips:source_versions.bzl", "ELIXIR_SOURCE")
 
 _TOOLCHAIN_TYPE = "//fips:toolchain_type"
 
@@ -13,10 +14,7 @@ def _fips_launcher_impl(ctx):
         arguments = [
             "build",
             "-trimpath",
-            "-ldflags=-s -w -X main.backend=%s -X main.elixirVersion=%s" % (
-                ctx.attr.backend,
-                ctx.attr.elixir_version,
-            ),
+            "-ldflags=-s -w -X main.backend=openssl -X main.elixirVersion=%s" % ctx.attr.elixir_version,
             "-o",
             launcher.path,
             ctx.file.source.path,
@@ -39,27 +37,23 @@ def _fips_launcher_impl(ctx):
         inputs = depset(direct = [ctx.file.source], transitive = [platform.go_files]),
         mnemonic = "FipsLauncherCompile",
         outputs = [launcher, go_state],
-        progress_message = "Compiling static %s FIPS launcher for %s" % (
-            ctx.attr.backend,
-            platform.arch,
-        ),
+        progress_message = "Compiling static OpenSSL FIPS launcher for %s" % platform.arch,
     )
     return [
         DefaultInfo(executable = launcher, files = depset([launcher])),
-        FipsLauncherInfo(backend = ctx.attr.backend, binary = launcher),
+        FipsLauncherInfo(backend = "openssl", binary = launcher),
     ]
 
 fips_launcher = rule(
     implementation = _fips_launcher_impl,
     attrs = {
-        "backend": attr.string(mandatory = True, values = ["boringssl", "openssl"]),
-        "elixir_version": attr.string(default = "1.20.2"),
+        "elixir_version": attr.string(default = ELIXIR_SOURCE.version),
         "source": attr.label(
             allow_single_file = [".go"],
             default = "//tools/fips_launcher:main.go",
         ),
     },
-    doc = "Cross-compiles a shell-free static launcher for the selected FIPS backend.",
+    doc = "Cross-compiles a shell-free static launcher for the OpenSSL FIPS runtime.",
     executable = True,
     toolchains = [_TOOLCHAIN_TYPE],
 )

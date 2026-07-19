@@ -7,6 +7,18 @@ load(
     "FipsOtpBootstrapInfo",
     "FipsOtpRuntimeInfo",
 )
+load("//fips:source_versions.bzl", "ELIXIR_SOURCE")
+
+def _toolbox_shell():
+    return "$(execpath //fips/toolchains:foreign_toolbox_shell)"
+
+def _foreign_path(prefix):
+    return ":".join([
+        prefix,
+        "$$(dirname %s)" % _toolbox_shell(),
+        "$$(dirname $(execpath //fips/toolchains:foreign_perl))",
+        "/bin",
+    ])
 
 def _directory_named(files, basename):
     for file in files:
@@ -53,7 +65,7 @@ _elixir_runtime_finalize = rule(
     implementation = _elixir_runtime_finalize_impl,
     attrs = {
         "foreign": attr.label(mandatory = True),
-        "elixir_version": attr.string(default = "1.20.2"),
+        "elixir_version": attr.string(default = ELIXIR_SOURCE.version),
     },
 )
 
@@ -61,10 +73,19 @@ def elixir_runtime(
         name,
         bootstrap,
         otp,
-        elixir_version = "1.20.2",
+        elixir_version = ELIXIR_SOURCE.version,
         visibility = None,
         tags = None):
-    """Builds architecture-independent Elixir bytecode with GNU Make."""
+    """Builds architecture-independent Elixir bytecode with GNU Make.
+
+    Args:
+      name: Elixir runtime target name.
+      bootstrap: Label providing the native OTP bootstrap.
+      otp: Label providing the target OTP runtime.
+      elixir_version: Elixir version recorded in evidence.
+      visibility: Optional target visibility.
+      tags: Optional tags applied to generated targets.
+    """
     common = {}
     if tags != None:
         common["tags"] = tags
@@ -81,13 +102,19 @@ def elixir_runtime(
     _otp_tools_artifact(name = otp_tools, otp = otp, **common)
 
     foreign_name = name + "_foreign"
+
     # Elixir has no configure step, but its launchers resolve symlinks. The
     # configure rule's in-place mode gives Make a copied source tree; the
     # pinned BusyBox `true` is the explicit no-op configure boundary.
     configure_make(
         name = foreign_name,
         args = ["-j8"],
-        build_data = ["@fips_busybox_exec//:bin/busybox.static"],
+        build_data = [
+            "@fips_busybox_exec//:bin/busybox.static",
+            "//fips/toolchains:foreign_perl",
+            "//fips/toolchains:foreign_toolbox",
+            "//fips/toolchains:foreign_toolbox_shell",
+        ],
         configure_command = "VERSION",
         configure_in_place = True,
         configure_prefix = "$(execpath @fips_busybox_exec//:bin/busybox.static) true",
@@ -99,13 +126,16 @@ def elixir_runtime(
             ":" + otp_tools,
         ],
         env = {
+            "CONFIG_SHELL": _toolbox_shell(),
             "ERL_AFLAGS": "-pa $(execpath :%s)" % otp_tools,
             "ERL_COMPILER_OPTIONS": "deterministic",
             "HOME": "$$BUILD_TMPDIR",
             "LANG": "C.UTF-8",
             "LC_ALL": "C.UTF-8",
             "OTP_BOOTSTRAP_ROOT": "$(execpath :%s)" % bootstrap_root,
-            "PATH": "$$(dirname $(execpath :%s)):/bin:/usr/bin" % bootstrap_erl,
+            "PATH": _foreign_path("$$(dirname $(execpath :%s))" % bootstrap_erl),
+            "PERL": "$(execpath //fips/toolchains:foreign_perl)",
+            "SHELL": _toolbox_shell(),
             "SOURCE_DATE_EPOCH": "0",
             "TMPDIR": "$$BUILD_TMPDIR",
         },
@@ -132,9 +162,8 @@ def elixir_runtime(
 
 def _fips_boot_module_impl(ctx):
     bootstrap = ctx.attr.bootstrap[FipsOtpBootstrapInfo]
-    source = ctx.file.boringssl_source if ctx.attr.backend == "boringssl" else ctx.file.openssl_source
-    basename = "fips_boot_boringssl.beam" if ctx.attr.backend == "boringssl" else "fips_boot.beam"
-    output = ctx.actions.declare_file(ctx.label.name + "/" + basename)
+    source = ctx.file.source
+    output = ctx.actions.declare_file(ctx.label.name + "/fips_boot.beam")
     ctx.actions.run(
         arguments = ["-o", output.dirname, source.path],
         env = {
@@ -148,20 +177,15 @@ def _fips_boot_module_impl(ctx):
         inputs = depset([bootstrap.root, bootstrap.erl, bootstrap.erlc, source]),
         mnemonic = "FipsBootCompile",
         outputs = [output],
-        progress_message = "Compiling %s FIPS boot invariant" % ctx.attr.backend,
+        progress_message = "Compiling OpenSSL FIPS boot invariant",
     )
     return [DefaultInfo(files = depset([output]))]
 
 fips_boot_module = rule(
     implementation = _fips_boot_module_impl,
     attrs = {
-        "backend": attr.string(mandatory = True, values = ["boringssl", "openssl"]),
         "bootstrap": attr.label(mandatory = True, providers = [FipsOtpBootstrapInfo]),
-        "boringssl_source": attr.label(
-            allow_single_file = [".erl"],
-            default = "//runtime:fips_boot_boringssl.erl",
-        ),
-        "openssl_source": attr.label(
+        "source": attr.label(
             allow_single_file = [".erl"],
             default = "//runtime:fips_boot.erl",
         ),

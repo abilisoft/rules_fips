@@ -10,7 +10,7 @@ exports_files([
     "defs.bzl",
     "extensions.bzl",
     "metadata.bzl",
-    "ninja.bzl",
     "providers.bzl",
     "toolbox.bzl",
+    "versions.bzl",
 ])

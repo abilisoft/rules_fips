@@ -1,11 +1,25 @@
-"""rules_foreign_cc-backed builds for validated cryptographic modules."""
+"""rules_foreign_cc builds with certificate references and runtime evidence."""
 
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake", "configure_make")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("//fips:providers.bzl", "FipsCryptoInfo")
+load("//fips:source_versions.bzl", "OPENSSL_CORE_SOURCE", "OPENSSL_FIPS_CERTIFICATE_REFERENCE", "OPENSSL_FIPS_SOURCE")
 
 _TOOLCHAIN_TYPE = "//fips:toolchain_type"
 _TARGET_AMD64 = "//fips/platforms:target_amd64"
 _TARGET_ARM64 = "//fips/platforms:target_arm64"
+
+def _llvm_tool(name):
+    return "$(execpath //fips/toolchains:llvm_musl/bin/%s)" % name
+
+def _toolbox_shell():
+    return "$(execpath //fips/toolchains:foreign_toolbox_shell)"
+
+def _foreign_path():
+    return ":".join([
+        "$$(dirname %s)" % _toolbox_shell(),
+        "$$(dirname $(execpath //fips/toolchains:foreign_perl))",
+        "/bin",
+    ])
 
 def _file_named(files, basename):
     for file in files:
@@ -22,53 +36,7 @@ def _directory_named(files, basename):
 def _sysroot(marker):
     return "$$(dirname $$(dirname $$(dirname $(execpath %s))))" % marker
 
-def _boringssl_cache(marker, triplet, processor):
-    clang_root = "$(execpath @fips_clang_amd64//sysroot:sysroot)"
-    sysroot = _sysroot(marker)
-    resource_dir = clang_root + "/lib/clang/22"
-    compile_flags = " ".join([
-        "--target=" + triplet,
-        "--sysroot=" + sysroot,
-        "-resource-dir=" + resource_dir,
-        "-O2",
-        "-fPIC",
-        "-Wno-unused-command-line-argument",
-    ])
-    link_flags = " ".join([
-        "--target=" + triplet,
-        "--sysroot=" + sysroot,
-        "-resource-dir=" + resource_dir,
-        "--rtlib=compiler-rt",
-        "-fuse-ld=lld",
-        "-static",
-    ])
-    return {
-        "BUILD_SHARED_LIBS": "OFF",
-        "CMAKE_AR": clang_root + "/bin/llvm-ar",
-        "CMAKE_ASM_COMPILER": clang_root + "/bin/clang",
-        "CMAKE_ASM_COMPILER_TARGET": triplet,
-        "CMAKE_ASM_FLAGS": compile_flags,
-        "CMAKE_C_COMPILER": clang_root + "/bin/clang",
-        "CMAKE_C_COMPILER_TARGET": triplet,
-        "CMAKE_CXX_COMPILER": clang_root + "/bin/clang++",
-        "CMAKE_CXX_COMPILER_TARGET": triplet,
-        "CMAKE_CXX_FLAGS": compile_flags + " -stdlib=libc++",
-        "CMAKE_C_FLAGS": compile_flags,
-        "CMAKE_EXE_LINKER_FLAGS": link_flags + " -stdlib=libc++",
-        "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
-        "CMAKE_RANLIB": clang_root + "/bin/llvm-ranlib",
-        "CMAKE_SHARED_LINKER_FLAGS": link_flags + " -stdlib=libc++",
-        "CMAKE_SYSROOT": sysroot,
-        "CMAKE_SYSTEM_NAME": "Linux",
-        "CMAKE_SYSTEM_PROCESSOR": processor,
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "FIPS": "1",
-        "GO_EXECUTABLE": "$(execpath @fips_go_amd64//sysroot:sysroot)/bin/go",
-        "PERL_EXECUTABLE": "$(execpath //fips/toolchains:foreign_perl)",
-    }
-
 def _openssl_env(marker, triplet, loader):
-    clang_root = "$(execpath @fips_clang_amd64//sysroot:sysroot)"
     sysroot = _sysroot(marker)
     resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
     compile_flags = " ".join([
@@ -86,198 +54,33 @@ def _openssl_env(marker, triplet, loader):
         "-B" + sysroot + "/usr/lib/",
         "--rtlib=compiler-rt",
         "--unwindlib=libunwind",
-        "-fuse-ld=lld",
+        "-fuse-ld=" + _llvm_tool("ld.lld"),
         "-Wl,-S",
         "-Wl,-z,relro,-z,now",
         "-Wl,--dynamic-linker=/opt/fips-elixir/lib/" + loader,
         "-Wl,-rpath,/opt/fips-elixir/lib",
     ])
     return {
-        "AR": clang_root + "/bin/llvm-ar",
-        "CC": clang_root + "/bin/clang",
+        "AR": _llvm_tool("ar"),
+        "CC": _llvm_tool("clang"),
         "CFLAGS": compile_flags,
+        "CONFIG_SHELL": _toolbox_shell(),
+        "CXX": _llvm_tool("clang++"),
         "GOCACHE": "$$BUILD_TMPDIR/gocache",
         "HOME": "$$BUILD_TMPDIR",
-        "LD": clang_root + "/bin/ld.lld",
+        "LD": _llvm_tool("ld.lld"),
         "LDFLAGS": link_flags,
-        "LD_LIBRARY_PATH": "$(execpath //fips/toolchains:llvm_libxml2_amd64)/usr/lib/x86_64-linux-gnu:$(execpath //fips/toolchains:llvm_libicu_amd64)/usr/lib/x86_64-linux-gnu",
-        "NM": clang_root + "/bin/llvm-nm",
-        "OBJCOPY": clang_root + "/bin/llvm-objcopy",
-        "OBJDUMP": clang_root + "/bin/llvm-objdump",
+        "NM": _llvm_tool("nm"),
+        "OBJCOPY": _llvm_tool("objcopy"),
+        "OBJDUMP": _llvm_tool("objdump"),
         "PERL": "$(execpath //fips/toolchains:foreign_perl)",
-        "READELF": clang_root + "/bin/llvm-readelf",
+        "PATH": _foreign_path(),
+        "READELF": _llvm_tool("readelf"),
         "SOURCE_DATE_EPOCH": "0",
-        "STRIP": clang_root + "/bin/llvm-strip",
+        "SHELL": _toolbox_shell(),
+        "STRIP": _llvm_tool("strip"),
         "TMPDIR": "$$BUILD_TMPDIR",
     }
-
-def _boringssl_finalize_impl(ctx):
-    platform = ctx.toolchains[_TOOLCHAIN_TYPE].fips
-    foreign_files = ctx.attr.foreign[DefaultInfo].files.to_list()
-    libcrypto = _file_named(foreign_files, "libcrypto.a")
-    libssl = _file_named(foreign_files, "libssl.a")
-    include_dir = _directory_named(foreign_files, "include")
-    checker = ctx.actions.declare_file(ctx.label.name + "/bin/boring-fips-check")
-    manifest = ctx.actions.declare_file(ctx.label.name + "/FIPS_BUILD.json")
-
-    ctx.actions.run(
-        arguments = [
-            "boringssl",
-            ctx.file.checker_source.path,
-            libcrypto.path,
-            libssl.path,
-            include_dir.path,
-            checker.path,
-            manifest.path,
-            platform.arch,
-            platform.clang_cc,
-            platform.llvm_readelf,
-            platform.musl_triplet,
-            platform.sysroot_path,
-            platform.resource_dir,
-            platform.musl_revision,
-        ],
-        env = {
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
-            "LD_LIBRARY_PATH": platform.clang_library_path,
-            "SOURCE_DATE_EPOCH": "0",
-        },
-        executable = ctx.executable.validator,
-        execution_requirements = {"block-network": "1"},
-        inputs = depset(
-            direct = [
-                ctx.file.checker_source,
-                ctx.file.license,
-                libcrypto,
-                libssl,
-                include_dir,
-            ],
-            transitive = [
-                platform.clang_files,
-                platform.clang_runtime_files,
-                platform.crt_files,
-                platform.sysroot_files,
-            ],
-        ),
-        mnemonic = "BoringSslFipsFinalize",
-        outputs = [checker, manifest],
-        progress_message = "Validating rules_foreign_cc BoringSSL FIPS outputs for %s" % platform.arch,
-    )
-
-    files = depset([
-        libcrypto,
-        libssl,
-        include_dir,
-        checker,
-        ctx.file.license,
-        manifest,
-        platform.musl_license_file,
-    ])
-    return [
-        DefaultInfo(files = files),
-        FipsCryptoInfo(
-            backend = "boringssl",
-            certificate = "CMVP #5296",
-            include_dir = include_dir,
-            manifest = manifest,
-            module_name = "BoringCrypto",
-            module_version = "2023042800",
-            runtime_files = depset([checker, ctx.file.license, platform.musl_license_file]),
-            service_indicator = "per-service",
-            static_libs = depset([libssl, libcrypto], order = "preorder"),
-        ),
-    ]
-
-_boringssl_finalize = rule(
-    implementation = _boringssl_finalize_impl,
-    attrs = {
-        "checker_source": attr.label(
-            allow_single_file = [".c"],
-            default = "//runtime:boring_fips_check.c",
-        ),
-        "foreign": attr.label(mandatory = True),
-        "license": attr.label(
-            allow_single_file = True,
-            default = "@boringssl_src//:LICENSE",
-        ),
-        "validator": attr.label(
-            allow_single_file = True,
-            cfg = "exec",
-            default = "//fips/private:fips_artifact_validator",
-            executable = True,
-        ),
-    },
-    toolchains = [_TOOLCHAIN_TYPE],
-)
-
-def boringssl_fips_static(name, visibility = None, tags = None):
-    """Builds validated BoringSSL through rules_foreign_cc's CMake rule."""
-    foreign_name = name + "_foreign"
-    common = {}
-    if tags != None:
-        common["tags"] = tags
-
-    cmake(
-        name = foreign_name,
-        build_data = [
-            "@boringssl_src//:CMakeLists.txt",
-            "@fips_clang_amd64//sysroot:sysroot",
-            "@fips_go_amd64//sysroot:sysroot",
-            "//fips/private:fips_artifact_validator",
-            "//fips/toolchains:foreign_perl",
-            "//fips/toolchains:llvm_libicu_amd64",
-            "//fips/toolchains:llvm_libxml2_amd64",
-        ] + select({
-            _TARGET_AMD64: ["@musl_amd64_sysroot//:sysroot", "@musl_amd64_sysroot//:usr/include/stdio.h"],
-            _TARGET_ARM64: ["@musl_arm64_sysroot//:sysroot", "@musl_arm64_sysroot//:usr/include/stdio.h"],
-        }),
-        cache_entries = select({
-            _TARGET_AMD64: _boringssl_cache(
-                "@musl_amd64_sysroot//:usr/include/stdio.h",
-                "x86_64-linux-musl",
-                "x86_64",
-            ),
-            _TARGET_ARM64: _boringssl_cache(
-                "@musl_arm64_sysroot//:usr/include/stdio.h",
-                "aarch64-linux-musl",
-                "aarch64",
-            ),
-        }),
-        configuration = "Release",
-        env = {
-            "GOCACHE": "$$BUILD_TMPDIR/gocache",
-            "GOENV": "off",
-            "GOFLAGS": "-buildvcs=false",
-            "GONOSUMDB": "*",
-            "GOPATH": "$$BUILD_TMPDIR/gopath",
-            "GOPROXY": "off",
-            "GOSUMDB": "off",
-            "GOTOOLCHAIN": "local",
-            "HOME": "$$BUILD_TMPDIR",
-            "LD_LIBRARY_PATH": "$(execpath //fips/toolchains:llvm_libxml2_amd64)/usr/lib/x86_64-linux-gnu:$(execpath //fips/toolchains:llvm_libicu_amd64)/usr/lib/x86_64-linux-gnu",
-            "PERL": "$(execpath //fips/toolchains:foreign_perl)",
-            "SOURCE_DATE_EPOCH": "0",
-            "TMPDIR": "$$BUILD_TMPDIR",
-        },
-        generate_crosstool_file = False,
-        generate_args = ["-GNinja"],
-        install = False,
-        lib_source = "@boringssl_src//:srcs",
-        out_static_libs = ["libcrypto.a", "libssl.a"],
-        postfix_script = "$(execpath //fips/private:fips_artifact_validator) stage-boringssl $(execpath @boringssl_src//:CMakeLists.txt) $$BUILD_TMPDIR $$INSTALLDIR",
-        targets = ["crypto", "ssl"],
-        **common
-    )
-
-    final_args = dict(common)
-    final_args["foreign"] = ":" + foreign_name
-    if visibility != None:
-        final_args["visibility"] = visibility
-    _boringssl_finalize(
-        name = name,
-        **final_args
-    )
 
 def _openssl_finalize_impl(ctx):
     platform = ctx.toolchains[_TOOLCHAIN_TYPE].fips
@@ -308,6 +111,12 @@ def _openssl_finalize_impl(ctx):
             platform.musl_loader_path,
             platform.sysroot_path,
             platform.llvm_readelf,
+            platform.qemu_aarch64_file.path if platform.arch == "arm64" else "-",
+            OPENSSL_FIPS_CERTIFICATE_REFERENCE,
+            OPENSSL_FIPS_SOURCE.version,
+            OPENSSL_FIPS_SOURCE.sha256,
+            OPENSSL_CORE_SOURCE.version,
+            OPENSSL_CORE_SOURCE.sha256,
         ],
         env = {
             "LANG": "C.UTF-8",
@@ -329,12 +138,13 @@ def _openssl_finalize_impl(ctx):
             ],
             transitive = [
                 platform.clang_files,
+                platform.qemu_aarch64_files,
                 platform.sysroot_files,
             ],
         ),
         mnemonic = "OpenSslFipsFinalize",
         outputs = [manifest],
-        progress_message = "Validating rules_foreign_cc OpenSSL FIPS outputs for %s" % platform.arch,
+        progress_message = "Checking rules_foreign_cc OpenSSL FIPS outputs for %s" % platform.arch,
     )
 
     files = depset([
@@ -355,11 +165,11 @@ def _openssl_finalize_impl(ctx):
         DefaultInfo(files = files),
         FipsCryptoInfo(
             backend = "openssl",
-            certificate = "CMVP #4985",
+            certificate = OPENSSL_FIPS_CERTIFICATE_REFERENCE,
             include_dir = include_dir,
             manifest = manifest,
             module_name = "OpenSSL FIPS Provider",
-            module_version = "3.1.2",
+            module_version = OPENSSL_FIPS_SOURCE.version,
             runtime_files = depset([
                 openssl_bin,
                 fips_module,
@@ -404,11 +214,20 @@ _openssl_finalize = rule(
 
 def _openssl_foreign_build_data():
     return [
-        "@fips_busybox_exec//:bin/busybox.static",
-        "@fips_clang_amd64//sysroot:sysroot",
+        "//fips/toolchains:foreign_toolbox",
+        "//fips/toolchains:foreign_toolbox_shell",
+        "//fips/toolchains:llvm_musl",
+        "//fips/toolchains:llvm_musl/bin/ar",
+        "//fips/toolchains:llvm_musl/bin/clang",
+        "//fips/toolchains:llvm_musl/bin/clang++",
+        "//fips/toolchains:llvm_musl/bin/ld.lld",
+        "//fips/toolchains:llvm_musl/bin/nm",
+        "//fips/toolchains:llvm_musl/bin/objcopy",
+        "//fips/toolchains:llvm_musl/bin/objdump",
+        "//fips/toolchains:llvm_musl/bin/ranlib",
+        "//fips/toolchains:llvm_musl/bin/readelf",
+        "//fips/toolchains:llvm_musl/bin/strip",
         "//fips/toolchains:foreign_perl",
-        "//fips/toolchains:llvm_libicu_amd64",
-        "//fips/toolchains:llvm_libxml2_amd64",
     ] + select({
         _TARGET_AMD64: ["@musl_amd64_sysroot//:sysroot", "@musl_amd64_sysroot//:usr/include/stdio.h"],
         _TARGET_ARM64: ["@musl_arm64_sysroot//:sysroot", "@musl_arm64_sysroot//:usr/include/stdio.h"],
@@ -435,7 +254,13 @@ def _openssl_target():
     })
 
 def openssl_fips(name, visibility = None, tags = None):
-    """Builds the OpenSSL core and validated provider with configure_make."""
+    """Builds the OpenSSL core and certificate-referenced provider.
+
+    Args:
+      name: Crypto target name.
+      visibility: Optional target visibility.
+      tags: Optional tags applied to generated targets.
+    """
     core_name = name + "_core_foreign"
     provider_name = name + "_provider_foreign"
     common = {}
@@ -447,7 +272,7 @@ def openssl_fips(name, visibility = None, tags = None):
         args = [
             "-s",
             "-j8",
-            "RANLIB=$$EXT_BUILD_ROOT$$/$(execpath @fips_clang_amd64//sysroot:sysroot)/bin/llvm-ranlib",
+            "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
         ],
         build_data = _openssl_foreign_build_data(),
         configure_command = "Configure",
@@ -471,7 +296,7 @@ def openssl_fips(name, visibility = None, tags = None):
         args = [
             "-s",
             "-j8",
-            "RANLIB=$$EXT_BUILD_ROOT$$/$(execpath @fips_clang_amd64//sysroot:sysroot)/bin/llvm-ranlib",
+            "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
         ],
         build_data = _openssl_foreign_build_data(),
         configure_command = "Configure",

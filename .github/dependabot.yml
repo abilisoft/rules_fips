@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: bazel
+    directory: /
+    schedule:
+      interval: monthly
+    labels: ["dependencies", "bazel"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: ["dependencies", "github-actions"]
+    open-pull-requests-limit: 5

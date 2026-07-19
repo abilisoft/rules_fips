@@ -86,3 +86,37 @@ func TestMuslLoaderFindsRelocatedExecutable(t *testing.T) {
 		t.Fatalf("unexpected loader: got %q, want %q", got, want)
 	}
 }
+
+func TestRuntimeRootFollowsLauncherSymlink(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	launcher := filepath.Join(bin, "elixir")
+	if err := os.WriteFile(launcher, []byte("launcher"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mix := filepath.Join(bin, "mix")
+	if err := os.Symlink("elixir", mix); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := runtimeRootFromExecutable(mix)
+	if err != nil {
+		t.Fatalf("runtimeRootFromExecutable returned an error: %v", err)
+	}
+	if got != root {
+		t.Fatalf("unexpected runtime root: got %q, want %q", got, root)
+	}
+}
+
+func TestRuntimeRootRejectsMisplacedLauncher(t *testing.T) {
+	launcher := filepath.Join(t.TempDir(), "elixir")
+	if err := os.WriteFile(launcher, []byte("launcher"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeRootFromExecutable(launcher); err == nil {
+		t.Fatal("runtimeRootFromExecutable accepted a launcher outside bin")
+	}
+}
