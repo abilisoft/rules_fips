@@ -5,36 +5,35 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/abilisoft/rules_fips/badge)](https://securityscorecards.dev/viewer/?uri=github.com/abilisoft/rules_fips)
 [![License](https://img.shields.io/github/license/abilisoft/rules_fips)](LICENSE)
 
-Hermetic Bazel rules for building a relocatable Erlang/OTP and Elixir runtime
-that starts with OpenSSL FIPS mode enforced.
+Hermetic Bazel rules for building a normalized OpenSSL FIPS crypto SDK. The SDK
+contains static archives and headers for consumers, plus the provider, config,
+musl runtime, and shell-free activation/launch tools needed at deployment.
 
 > [!IMPORTANT]
-> The project records build and runtime evidence. It does not certify,
+> The project records build and provider evidence. It does not certify,
 > validate, approve, or guarantee the FIPS compliance of an application or
 > deployment.
 
 > [!NOTE]
-> [`v0.1.0`](https://github.com/abilisoft/rules_fips/tree/v0.1.0) is a verified
-> signed GitHub tag but is intentionally not published to BCR yet. Pin its
-> verified commit directly as shown in
-> [Publishing](docs/publishing.md#consume-before-bcr). A signed tag
-> identifies source; it does not change the FIPS claim boundary above.
+> `rules_fips` does not build OTP, Elixir, Python, Rust, or application
+> releases. Language rule sets consume its backend-neutral SDK contract.
 
-## The useful part
+## What it produces
 
-One macro produces two target-specific files:
+`openssl_fips_sdk` exposes a target-specific SDK directory and an explicit
+deployment payload. A consumer receives:
 
-```text
-elixir_fips.tar.gz   relocatable runtime tree
-elixir_fips.json     build, linkage, source, and runtime-check evidence
-```
+- `include/`, `lib/libcrypto.a`, and `lib/libssl.a` for its build;
+- `fips.so`, `openssl.cnf`, OpenSSL, the musl loader/libc, and license/evidence
+  files for deployment;
+- a native activation tool and a native runtime-loader wrapper; and
+- opaque argument/environment templates. Consumers do not branch on backend
+  identity.
 
 The current tested catalog selects:
 
 | Component | Selection |
 | --- | --- |
-| Erlang/OTP | 29.0.3 |
-| Elixir | 1.20.2 |
 | OpenSSL core | 3.5.7 LTS |
 | OpenSSL FIPS provider | 3.1.2, referencing CMVP certificate #4985 |
 | Targets | Linux AMD64 and Linux Arm64 |
@@ -42,63 +41,38 @@ The current tested catalog selects:
 | Build compiler | Clang/LLD 22.1.8 |
 | Arm64 validation | static QEMU 11.0.2, build-time only |
 
-The OpenSSL core build produces static `libcrypto.a` and `libssl.a` archives.
-OTP's crypto integration embeds `libcrypto.a`, and OTP's supported
-static-NIF/static-driver options are enabled. Directly executed OTP helper
-programs are static musl executables. The BEAM executable and OpenSSL command
-use the bundled musl loader and libc; the launcher invokes them through paths
-resolved inside the extracted tree. The runtime archive also carries OpenSSL
-3's required `fips.so` provider. It does not use the deployment machine's
-OpenSSL or libc packages.
+The current public backend is OpenSSL. wolfSSL is not implemented or claimed by
+this release.
 
 ## Build it
 
-A local AMD64 build:
+Build the AMD64 SDK:
 
 ```console
 bazel build --config=local --config=linux_amd64 \
-  //examples:elixir_openssl_fips
+  //examples:openssl_fips_sdk
 ```
 
-Cross-compile the Arm64 archive from the supported Linux AMD64 execution
-platform. Build-time provider and BEAM checks run through pinned static QEMU;
-this is emulated validation, not native Arm64 hardware testing:
+Build the Arm64 SDK. Provider checks run through pinned QEMU when the execution
+host is AMD64; that is emulated target execution, not native hardware evidence:
 
 ```console
 bazel build --config=local --config=linux_arm64 \
-  //examples:elixir_openssl_fips
+  //examples:openssl_fips_sdk
 ```
 
-Keep the extracted tree together and use its launcher:
-
-```console
-tar -xzf bazel-bin/examples/elixir_openssl_fips.tar.gz
-./opt/fips-elixir/bin/elixir -e \
-  'IO.inspect({System.version(), :crypto.info_fips()})'
-```
-
-The launcher resolves the runtime relative to itself. The
-`opt/fips-elixir` directory is an archive layout, not a required host install
-location.
-
-### Why this is not one fully static executable
-
-Neither Elixir bytecode nor the BEAM VM alone imposes this boundary: OTP
-supports static NIFs. OpenSSL 3's ordinary FIPS path is a dynamically loaded
-provider, however, and a completely static musl process cannot provide that
-module-loading model. This build therefore keeps BEAM musl-dynamic while
-embedding the OpenSSL core and bundles `fips.so`, the musl loader, and libc.
-The portable unit is the resulting archive, not one ELF executable. It is
-self-contained with respect to deployment userspace, but it still needs a
-compatible Linux kernel and target CPU.
+OpenSSL 3 loads its FIPS provider dynamically. `fully_static` is therefore
+false even though the consumer can link the OpenSSL core statically. The SDK
+makes that runtime boundary explicit instead of silently borrowing a host
+provider or configuration.
 
 ## Use the rules
 
 ```starlark
-load("@rules_fips//fips:defs.bzl", "fips_elixir_distribution")
+load("@rules_fips//fips:defs.bzl", "openssl_fips_sdk")
 
-fips_elixir_distribution(
-    name = "elixir_fips",
+openssl_fips_sdk(
+    name = "crypto_sdk",
 )
 ```
 
@@ -135,24 +109,23 @@ as `"catalog_entry": false` in the source manifest and are not represented as
 tested by this project.
 
 Build the source manifest alone to inspect resolved versions without compiling
-the runtime:
+OpenSSL:
 
 ```console
 bazel build --config=local //fips:source_pins
 ```
 
-## What “enforced” means here
+## Consumer boundary
 
-The build uses OTP's upstream `--enable-fips` and static-NIF switches. It does
-not patch OTP, Elixir, or OpenSSL source.
+The returned `otp_crypto_sdk` dictionary is a convenience adapter for
+`rules_elixir_mix`; it is data, not a shared provider dependency. rules_fips
+owns OpenSSL source, build identity, certificate metadata, provider activation,
+and SDK runtime payload. The consumer owns its VM build, FIPS startup flags,
+release configuration, and application-level runtime tests.
 
-Before packaging, declared tools verify architecture and linkage, run
-`openssl fipsinstall`, load the provider, and start OTP with FIPS mode enabled.
-The packaged launcher repeats the startup requirement and an Erlang boot guard
-fails before user code if the invariant is missing.
-
-Those are engineering controls and recorded observations—not a compliance
-conclusion. See [FIPS model](docs/fips-model.md) for the exact claim boundary.
+The SDK never silently falls back to a host OpenSSL installation or another
+backend. These are engineering controls and recorded observations—not a
+compliance conclusion. See [FIPS model](docs/fips-model.md).
 
 ## Hermeticity and portability
 
@@ -160,14 +133,13 @@ Sources, compilers, sysroots, build tools, and licenses are fetched by exact
 URL and SHA-256. Build actions use declared inputs; the default BuildBuddy
 execution image is digest-pinned and has action networking disabled.
 The unavoidable upstream Configure/make boundary is delegated to
-`rules_foreign_cc`; repository-owned staging and packaging are Starlark or
+`rules_foreign_cc`; repository-owned staging and SDK assembly are Starlark or
 compiled Go, with no repository shell scripts or source patches.
 
 The checked-in BuildBuddy configuration supplies a digest-pinned Linux
 execution image. `--config=local` disables remote services; local execution
-requires the host facilities used by Bazel and `rules_foreign_cc`. Deployment
-archives are distribution-independent within their documented Linux kernel
-and CPU boundary, not universal binaries.
+requires the host facilities used by Bazel and `rules_foreign_cc`. SDK outputs
+remain architecture-specific and require a compatible Linux kernel and CPU.
 
 Read [Portability and hermeticity](docs/portability.md) before treating
 “relocatable” as “runs everywhere.”
@@ -186,7 +158,7 @@ Read [Portability and hermeticity](docs/portability.md) before treating
 
 ## License
 
-The rules are Apache-2.0. Produced archives carry the applicable upstream
+The rules are Apache-2.0. The SDK payload exposes the applicable upstream
 license texts. Static linking and bundling do not remove a distributor's
 license obligations. This repository's license inventory is engineering
 documentation, not legal advice.

@@ -1,3 +1,9 @@
+load("@rules_fips//fips:defs.bzl", "openssl_fips_sdk")
 load(":smoke.bzl", "rules_fips_smoke")
 
 rules_fips_smoke(name = "smoke")
+
+openssl_fips_sdk(
+    name = "external_sdk",
+    tags = ["manual"],
+)

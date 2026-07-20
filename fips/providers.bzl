@@ -15,54 +15,24 @@ FipsCryptoInfo = provider(
     },
 )
 
-FipsRuntimeInfo = provider(
-    doc = "A staged OTP/Elixir runtime backed by a FIPS cryptographic module.",
+FipsCryptoSdkInfo = provider(
+    doc = "A normalized crypto SDK export for backend-neutral consumers such as rules_elixir_mix.",
     fields = {
-        "backend": "Canonical cryptographic backend name.",
-        "distribution": "Relocatable distribution tarball rooted at /opt/fips-elixir.",
-        "manifest": "Runtime build and validation manifest.",
-        "otp_version": "OTP source version.",
-        "elixir_version": "Elixir source version.",
-    },
-)
-
-FipsOtpBootstrapInfo = provider(
-    doc = "A native, cacheable OTP bootstrap used to cross-build target OTP and Elixir bytecode.",
-    fields = {
-        "bin_dir": "Directory containing the native erl and erlc entry points.",
-        "bindir": "Path within root containing erlexec and the native BEAM emulator.",
-        "erl": "Native erl entry point backed by the retained erlexec binary.",
-        "erlc": "Native erlc compiler entry point.",
-        "escript": "Native escript entry point.",
-        "root": "Tree artifact containing the retained native OTP build.",
-        "rootdir": "Path within root containing the bootstrap code tree.",
-        "version": "OTP source version used to produce the bootstrap.",
-    },
-)
-
-FipsOtpRuntimeInfo = provider(
-    doc = "An installed target OTP runtime linked to a FIPS cryptographic module.",
-    fields = {
-        "backend": "Canonical cryptographic backend name.",
-        "root": "Tree artifact rooted above opt/fips-elixir.",
-        "tools_ebin": "Target tools ebin tree used while compiling Elixir.",
-        "version": "OTP source version.",
-    },
-)
-
-FipsElixirRuntimeInfo = provider(
-    doc = "An installed Elixir overlay compiled by the native OTP bootstrap.",
-    fields = {
-        "root": "Tree artifact rooted above opt/fips-elixir.",
-        "version": "Elixir source version.",
-    },
-)
-
-FipsLauncherInfo = provider(
-    doc = "A statically compiled launcher that enforces FIPS startup invariants.",
-    fields = {
-        "backend": "Canonical cryptographic backend name.",
-        "binary": "Target-architecture static launcher executable.",
+        "activation_args": "Argument vector for the shell-free activation executable.",
+        "activation_tool": "Target-configured activation executable.",
+        "activation_tool_release_path": "SDK-relative deployment path of the activation executable.",
+        "artifacts": "Named individual artifacts used to assemble deployment payloads.",
+        "backend_metadata": "Opaque producer metadata; consumers must not branch on it.",
+        "crypto": "Underlying FipsCryptoInfo provider.",
+        "execution_wrapper": "Target-configured shell-free launcher for SDK-owned runtime loaders.",
+        "execution_wrapper_environment": "Opaque environment templates required by execution_wrapper.",
+        "execution_wrapper_release_path": "SDK-relative deployment path of execution_wrapper.",
+        "fully_static": "Whether no runtime payload or activation is required.",
+        "linkopts": "Additional backend-neutral system link options required by OTP.",
+        "runtime_destinations": "SDK-relative destinations corresponding to runtime_files.",
+        "runtime_environment": "Runtime environment templates rooted at {sysroot} or {activation_root}.",
+        "runtime_files": "Ordered deployment payload files.",
+        "sysroot": "Directory artifact containing the complete build SDK layout.",
     },
 )
 
@@ -91,10 +61,21 @@ HermeticMakeInfo = provider(
     },
 )
 
+HermeticBashInfo = provider(
+    doc = "A statically linked launcher for pinned GNU Bash and its musl runtime.",
+    fields = {
+        "binary": "Static launcher executable used at upstream Bash boundaries.",
+        "files": "All files required by the launcher and pinned Bash runtime.",
+        "version": "Pinned GNU Bash version.",
+    },
+)
+
 ForeignToolboxInfo = provider(
     doc = "Pinned execution tools used only at unavoidable upstream Configure/make boundaries.",
     fields = {
+        "applets": "BusyBox applet launcher files keyed by applet name.",
         "bin_dir": "Directory containing BusyBox applet symlinks.",
+        "bash": "Pinned GNU Bash launcher.",
         "busybox": "Pinned static BusyBox executable.",
         "files": "All toolbox, GNU make, and Perl runtime inputs.",
         "make": "Static GNU make launcher.",

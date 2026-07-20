@@ -3,6 +3,7 @@
 load(
     "//fips:providers.bzl",
     "ForeignToolboxInfo",
+    "HermeticBashInfo",
     "HermeticMakeInfo",
     "MuslSysrootInfo",
 )
@@ -90,6 +91,157 @@ _BUSYBOX_APPLETS = [
     "xzcat",
 ]
 
+def _hermetic_busybox_impl(ctx):
+    go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
+    output = ctx.actions.declare_file(ctx.label.name + "/bin/busybox")
+    go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    linker_values = " ".join([
+        "-s",
+        "-w",
+        "-X main.busyboxPath=" + ctx.file._busybox.path,
+    ])
+    ctx.actions.run(
+        arguments = [
+            "build",
+            "-trimpath",
+            "-ldflags=" + linker_values,
+            "-o",
+            output.path,
+            ctx.file._source.path,
+        ],
+        env = {
+            "CGO_ENABLED": "0",
+            "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOENV": "off",
+            "GOFLAGS": "-buildvcs=false",
+            "GOOS": "linux",
+            "GOARCH": ctx.attr.arch,
+            "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
+            "GOTOOLCHAIN": "local",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = go_root.path + "/bin/go",
+        execution_requirements = {"block-network": "1"},
+        inputs = depset(
+            direct = [ctx.file._busybox, ctx.file._source],
+            transitive = [go_files],
+        ),
+        mnemonic = "HermeticBusyBoxLauncherCompile",
+        outputs = [output, go_state],
+        progress_message = "Compiling static launcher for pinned BusyBox",
+    )
+    return [DefaultInfo(
+        executable = output,
+        files = depset([output, ctx.file._busybox]),
+    )]
+
+hermetic_busybox = rule(
+    implementation = _hermetic_busybox_impl,
+    attrs = {
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "_busybox": attr.label(
+            allow_single_file = True,
+            default = Label("//fips/toolchains:busybox_exec"),
+        ),
+        "_go": attr.label(default = Label("@fips_go_amd64//sysroot:sysroot")),
+        "_source": attr.label(
+            allow_single_file = [".go"],
+            default = Label("//tools/hermetic_busybox:main.go"),
+        ),
+    },
+    doc = "Builds a static applet dispatcher for pinned BusyBox.",
+    executable = True,
+)
+
+def _hermetic_bash_impl(ctx):
+    go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
+    musl = ctx.attr._musl[MuslSysrootInfo]
+    bash_suffix = "/bin/bash"
+    if not ctx.file._bash.path.endswith(bash_suffix):
+        fail("pinned Bash executable must be located at bin/bash")
+    bash_root = ctx.file._bash.path.removesuffix(bash_suffix)
+    output = ctx.actions.declare_file(ctx.label.name + "/bin/bash")
+    go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    linker_values = " ".join([
+        "-s",
+        "-w",
+        "-X main.bashPath=" + ctx.file._bash.path,
+        "-X main.libraryPath=" + bash_root + "/lib:" + bash_root + "/usr/lib:" + musl.libc.dirname,
+        "-X main.loaderPath=" + musl.loader.path,
+    ])
+    ctx.actions.run(
+        arguments = [
+            "build",
+            "-trimpath",
+            "-ldflags=" + linker_values,
+            "-o",
+            output.path,
+            ctx.file._source.path,
+        ],
+        env = {
+            "CGO_ENABLED": "0",
+            "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOENV": "off",
+            "GOFLAGS": "-buildvcs=false",
+            "GOOS": "linux",
+            "GOARCH": ctx.attr.arch,
+            "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
+            "GOTOOLCHAIN": "local",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = go_root.path + "/bin/go",
+        execution_requirements = {"block-network": "1"},
+        inputs = depset(
+            direct = [ctx.file._bash, ctx.file._source, musl.libc, musl.loader],
+            transitive = [
+                go_files,
+                ctx.attr._bash_runtime[DefaultInfo].files,
+            ],
+        ),
+        mnemonic = "HermeticBashLauncherCompile",
+        outputs = [output, go_state],
+        progress_message = "Compiling static launcher for pinned GNU Bash 5.3.9",
+    )
+    files = depset(
+        direct = [output, musl.libc, musl.loader],
+        transitive = [ctx.attr._bash_runtime[DefaultInfo].files],
+    )
+    return [
+        DefaultInfo(executable = output, files = files),
+        HermeticBashInfo(
+            binary = output,
+            files = files,
+            version = "5.3.9",
+        ),
+    ]
+
+hermetic_bash = rule(
+    implementation = _hermetic_bash_impl,
+    attrs = {
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "_bash": attr.label(
+            allow_single_file = True,
+            default = Label("//fips/toolchains:bash_exec"),
+        ),
+        "_bash_runtime": attr.label(default = Label("//fips/toolchains:bash_exec_runtime")),
+        "_go": attr.label(default = Label("@fips_go_amd64//sysroot:sysroot")),
+        "_musl": attr.label(
+            default = Label("//fips/toolchains:execution_musl"),
+            providers = [MuslSysrootInfo],
+        ),
+        "_source": attr.label(
+            allow_single_file = [".go"],
+            default = Label("//tools/hermetic_bash:main.go"),
+        ),
+    },
+    doc = "Builds a static launcher for pinned GNU Bash and its musl runtime.",
+    executable = True,
+)
+
 def _single_tree(target, description):
     files = target[DefaultInfo].files
     roots = files.to_list()
@@ -124,7 +276,7 @@ def _hermetic_make_impl(ctx):
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
-            "GOARCH": "amd64",
+            "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
             "LANG": "C.UTF-8",
@@ -154,13 +306,14 @@ def _hermetic_make_impl(ctx):
 hermetic_make = rule(
     implementation = _hermetic_make_impl,
     attrs = {
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
         "_go": attr.label(default = "@fips_go_amd64//sysroot:sysroot"),
         "_make": attr.label(
             allow_single_file = True,
-            default = "@fips_make_exec//:usr/bin/make",
+            default = Label("//fips/toolchains:make_exec"),
         ),
         "_musl": attr.label(
-            default = "//fips/toolchains:musl_amd64",
+            default = Label("//fips/toolchains:execution_musl"),
             providers = [MuslSysrootInfo],
         ),
         "_source": attr.label(
@@ -306,6 +459,7 @@ hermetic_musl_toolchain = rule(
 )
 
 def _foreign_toolbox_impl(ctx):
+    bash = ctx.attr.bash[HermeticBashInfo]
     perl = ctx.toolchains[_PERL_TOOLCHAIN].perl_runtime
     make = ctx.attr.make[HermeticMakeInfo]
     applets = {}
@@ -314,7 +468,7 @@ def _foreign_toolbox_impl(ctx):
         ctx.actions.symlink(
             is_executable = True,
             output = output,
-            target_file = ctx.file.busybox,
+            target_file = ctx.executable.busybox_launcher,
         )
         applets[applet] = output
     make_link = ctx.actions.declare_file(ctx.label.name + "/bin/make")
@@ -323,14 +477,27 @@ def _foreign_toolbox_impl(ctx):
         output = make_link,
         target_file = make.binary,
     )
+    bash_link = ctx.actions.declare_file(ctx.label.name + "/bin/bash")
+    ctx.actions.symlink(
+        is_executable = True,
+        output = bash_link,
+        target_file = bash.binary,
+    )
     files = depset(
-        direct = [ctx.file.busybox, make_link] + applets.values(),
-        transitive = [make.files, perl.runtime],
+        direct = [ctx.file.busybox, bash_link, make_link] + applets.values(),
+        transitive = [
+            bash.files,
+            ctx.attr.busybox_launcher[DefaultInfo].files,
+            make.files,
+            perl.runtime,
+        ],
     )
     return [
         DefaultInfo(files = files),
         ForeignToolboxInfo(
+            applets = applets,
             bin_dir = applets["sh"].dirname,
+            bash = bash_link,
             busybox = ctx.file.busybox,
             files = files,
             make = make_link,
@@ -342,9 +509,18 @@ def _foreign_toolbox_impl(ctx):
 foreign_toolbox = rule(
     implementation = _foreign_toolbox_impl,
     attrs = {
+        "bash": attr.label(
+            default = Label("//fips/toolchains:hermetic_bash"),
+            providers = [HermeticBashInfo],
+        ),
         "busybox": attr.label(
             allow_single_file = True,
-            default = "@fips_busybox_exec//:bin/busybox.static",
+            mandatory = True,
+        ),
+        "busybox_launcher": attr.label(
+            cfg = "target",
+            default = Label("//fips/toolchains:hermetic_busybox"),
+            executable = True,
         ),
         "make": attr.label(
             default = "//fips/toolchains:hermetic_make",
@@ -368,6 +544,102 @@ foreign_toolbox_shell = rule(
         ),
     },
     doc = "Exposes the pinned toolbox shell as a location-expansion anchor.",
+)
+
+def _foreign_toolbox_executable_impl(ctx):
+    toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
+    executable = ctx.actions.declare_file(ctx.label.name + "/sh")
+    ctx.actions.symlink(
+        is_executable = True,
+        output = executable,
+        target_file = toolbox.sh,
+    )
+    files = depset(
+        direct = [executable],
+        transitive = [toolbox.files],
+    )
+    return [DefaultInfo(
+        executable = executable,
+        files = files,
+        runfiles = ctx.runfiles(transitive_files = toolbox.files),
+    )]
+
+foreign_toolbox_executable = rule(
+    implementation = _foreign_toolbox_executable_impl,
+    attrs = {
+        "toolbox": attr.label(
+            mandatory = True,
+            providers = [ForeignToolboxInfo],
+        ),
+    },
+    doc = "Exposes the pinned toolbox shell as an executable Bazel tool.",
+    executable = True,
+)
+
+def _foreign_toolbox_posix_impl(ctx):
+    toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
+    applets = []
+    shell = None
+    for name in _BUSYBOX_APPLETS:
+        output = ctx.actions.declare_file(ctx.label.name + "/bin/" + name)
+        ctx.actions.symlink(
+            is_executable = True,
+            output = output,
+            target_file = toolbox.applets[name],
+        )
+        applets.append(output)
+        if name == "sh":
+            shell = output
+    files = depset(
+        direct = applets,
+        transitive = [toolbox.files],
+    )
+    return [DefaultInfo(
+        executable = shell,
+        files = files,
+        runfiles = ctx.runfiles(transitive_files = files),
+    )]
+
+foreign_toolbox_posix = rule(
+    implementation = _foreign_toolbox_posix_impl,
+    attrs = {
+        "toolbox": attr.label(
+            mandatory = True,
+            providers = [ForeignToolboxInfo],
+        ),
+    },
+    doc = "Exposes a single executable directory of pinned POSIX build tools.",
+    executable = True,
+)
+
+def _foreign_toolbox_smoke_impl(ctx):
+    toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
+    output = ctx.actions.declare_file(ctx.label.name + ".ok")
+    ctx.actions.run(
+        arguments = [
+            "-c",
+            '"$1" "$2"',
+            "toolbox-smoke",
+            toolbox.applets["touch"].path,
+            output.path,
+        ],
+        executable = toolbox.sh,
+        inputs = toolbox.files,
+        mnemonic = "ForeignToolboxSmoke",
+        outputs = [output],
+        progress_message = "Checking the pinned foreign-build toolbox",
+    )
+    return [DefaultInfo(files = depset([output]))]
+
+foreign_toolbox_smoke = rule(
+    implementation = _foreign_toolbox_smoke_impl,
+    attrs = {
+        "toolbox": attr.label(
+            mandatory = True,
+            providers = [ForeignToolboxInfo],
+        ),
+    },
+    doc = "Checks that the pinned BusyBox executes on the selected execution platform.",
 )
 
 def _foreign_perl_impl(ctx):

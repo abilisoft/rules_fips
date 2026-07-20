@@ -1,9 +1,19 @@
 """Small Clang/musl C++ toolchain used by native Bazel and rules_foreign_cc."""
 
 load(
+    "@rules_cc//cc:action_names.bzl",
+    "CPP_COMPILE_ACTION_NAME",
+    "CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME",
+    "CPP_LINK_EXECUTABLE_ACTION_NAME",
+    "C_COMPILE_ACTION_NAME",
+)
+load(
     "@rules_cc//cc:cc_toolchain_config_lib.bzl",
     "feature",
+    "flag_group",
+    "flag_set",
     "tool_path",
+    "with_feature_set",
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
@@ -14,12 +24,89 @@ def _sysroot_path(marker):
         fail("musl sysroot marker must end in %s" % suffix)
     return marker.path.removesuffix(suffix)
 
+def _execroot_path(file):
+    return "/proc/self/cwd/" + file.path
+
 def _fips_cc_toolchain_config_impl(ctx):
     sysroot = _sysroot_path(ctx.file.sysroot_marker)
-    resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
+    action_sysroot = "/proc/self/cwd/" + sysroot
+    resource_dir = action_sysroot + "/usr/lib/llvm22/lib/clang/22"
+    compile_flags = [
+        "--target=" + ctx.attr.target_triplet,
+        "--sysroot=" + action_sysroot,
+        "-resource-dir=" + resource_dir,
+        "-B" + action_sysroot + "/usr/lib/",
+        "-O2",
+        "-fPIC",
+    ]
+    cxx_flags = [
+        "-stdlib=libc++",
+        "-isystem" + action_sysroot + "/usr/include/c++/v1",
+    ]
+    loader = "ld-musl-x86_64.so.1" if ctx.attr.arch == "x86_64" else "ld-musl-aarch64.so.1"
+    link_flags = [
+        "--rtlib=compiler-rt",
+        "--unwindlib=libunwind",
+        "-fuse-ld=" + _execroot_path(ctx.file.ld),
+        "-Wl,-z,relro,-z,now",
+        "-Wl,--push-state,-Bstatic",
+        "-lc++",
+        "-lc++abi",
+        "-lunwind",
+        "-Wl,--pop-state",
+    ]
+    dynamic_executable_flags = [
+        "-Wl,--dynamic-linker=" + action_sysroot + "/lib/" + loader,
+        "-Wl,-rpath," + action_sysroot + "/lib",
+    ]
     features = [
         feature(name = "supports_pic", enabled = True),
         feature(name = "supports_start_end_lib", enabled = True),
+        feature(
+            name = "rules_fips_compile_flags",
+            enabled = True,
+            flag_sets = [flag_set(
+                actions = [
+                    C_COMPILE_ACTION_NAME,
+                    CPP_COMPILE_ACTION_NAME,
+                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
+                    CPP_LINK_EXECUTABLE_ACTION_NAME,
+                ],
+                flag_groups = [flag_group(flags = compile_flags)],
+            )],
+        ),
+        feature(
+            name = "rules_fips_cxx_flags",
+            enabled = True,
+            flag_sets = [flag_set(
+                actions = [
+                    CPP_COMPILE_ACTION_NAME,
+                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
+                    CPP_LINK_EXECUTABLE_ACTION_NAME,
+                ],
+                flag_groups = [flag_group(flags = cxx_flags)],
+            )],
+        ),
+        feature(
+            name = "rules_fips_link_flags",
+            enabled = True,
+            flag_sets = [flag_set(
+                actions = [
+                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
+                    CPP_LINK_EXECUTABLE_ACTION_NAME,
+                ],
+                flag_groups = [flag_group(flags = link_flags)],
+            )],
+        ),
+        feature(
+            name = "rules_fips_dynamic_executable_flags",
+            enabled = True,
+            flag_sets = [flag_set(
+                actions = [CPP_LINK_EXECUTABLE_ACTION_NAME],
+                flag_groups = [flag_group(flags = dynamic_executable_flags)],
+                with_features = [with_feature_set(not_features = ["fully_static_link"])],
+            )],
+        ),
     ]
     return [
         cc_common.create_cc_toolchain_config_info(
@@ -28,8 +115,8 @@ def _fips_cc_toolchain_config_impl(ctx):
             features = features,
             cxx_builtin_include_directories = [
                 resource_dir + "/include",
-                sysroot + "/usr/include",
-                sysroot + "/usr/include/c++/v1",
+                action_sysroot + "/usr/include",
+                action_sysroot + "/usr/include/c++/v1",
             ],
             toolchain_identifier = "rules-fips-clang-22-%s" % ctx.attr.arch,
             host_system_name = "local",
@@ -40,14 +127,14 @@ def _fips_cc_toolchain_config_impl(ctx):
             abi_version = "musl",
             abi_libc_version = "musl-1.2.6",
             tool_paths = [
-                tool_path(name = "ar", path = ctx.file.ar.path),
-                tool_path(name = "cpp", path = ctx.file.clang.path),
-                tool_path(name = "gcc", path = ctx.file.clang.path),
-                tool_path(name = "gcov", path = ctx.file.nm.path),
-                tool_path(name = "ld", path = ctx.file.ld.path),
-                tool_path(name = "nm", path = ctx.file.nm.path),
-                tool_path(name = "objdump", path = ctx.file.objdump.path),
-                tool_path(name = "strip", path = ctx.file.strip.path),
+                tool_path(name = "ar", path = _execroot_path(ctx.file.ar)),
+                tool_path(name = "cpp", path = _execroot_path(ctx.file.clang)),
+                tool_path(name = "gcc", path = _execroot_path(ctx.file.clang)),
+                tool_path(name = "gcov", path = _execroot_path(ctx.file.nm)),
+                tool_path(name = "ld", path = _execroot_path(ctx.file.ld)),
+                tool_path(name = "nm", path = _execroot_path(ctx.file.nm)),
+                tool_path(name = "objdump", path = _execroot_path(ctx.file.objdump)),
+                tool_path(name = "strip", path = _execroot_path(ctx.file.strip)),
             ],
         ),
     ]

@@ -1,8 +1,8 @@
 # FIPS model and claim boundary
 
-The project builds a runtime that fails closed when its configured OpenSSL
-FIPS mode is unavailable. It also records reproducible source and runtime
-evidence. It does not issue a validation or compliance attestation.
+The project builds a crypto SDK, verifies that its configured OpenSSL provider
+can enter FIPS mode, and records reproducible source/build evidence. It does
+not issue a validation or compliance attestation.
 
 ## Certificate reference, not certificate inheritance
 
@@ -16,13 +16,13 @@ extend that certificate to this repository's:
 - musl build;
 - CPU and kernel combination;
 - static OpenSSL core;
-- OTP crypto NIF;
-- Elixir application;
+- consuming language runtime;
+- application;
 - container image; or
 - deployment procedures.
 
 The manifests therefore use `certificate_reference`, never a field claiming
-that the produced archive is validated.
+that the produced SDK or a consumer artifact is validated.
 
 ## What the build checks
 
@@ -32,12 +32,12 @@ For the OpenSSL path, declared validators:
 2. hash the produced static libraries and provider;
 3. run `openssl fipsinstall` against the packaged provider;
 4. load the provider with the packaged configuration;
-5. start target OTP with `-crypto fips_mode true`;
-6. require `crypto:info_fips()` to report `enabled`; and
-7. require OTP to report the expected provider build information.
+5. record module/source identity and conservative certificate metadata.
 
-The runtime launcher prepares the same module paths and configuration, forces
-FIPS mode, and runs an Erlang guard before application code.
+The native activation tool repeats `fipsinstall` for deployment-owned writable
+state. The native loader wrapper launches a declared consumer executable with
+the SDK runtime. Each consumer is responsible for its own early FIPS-mode
+configuration and behavioral checks.
 
 These checks answer “did this build behave as configured in the observed test
 environment?” They do not answer “is this deployment compliant?”
@@ -61,14 +61,14 @@ on that certificate.
 
 - “The build used the source identities recorded in its manifest.”
 - “The recorded OpenSSL provider source references CMVP certificate #4985.”
-- “The build completed its recorded provider and OTP runtime checks.”
-- “The packaged launcher requires OTP FIPS mode before user code starts.”
-- “The archive does not depend on the host distribution's OpenSSL package.”
+- “The build completed its recorded provider checks.”
+- “The SDK exposes a native per-deployment activation mechanism.”
+- “The SDK payload does not require the host distribution's OpenSSL package.”
 
 ## Unsupported statements
 
-- “This Elixir application is FIPS certified.”
-- “This archive is a validated cryptographic module.”
+- “This application is FIPS certified.”
+- “This SDK is a validated cryptographic module.”
 - “The musl targets are covered by certificate #4985.”
 - “Static linking preserves validation on every Linux system.”
 - “Passing CI proves regulatory compliance.”

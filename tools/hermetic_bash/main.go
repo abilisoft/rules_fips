@@ -1,6 +1,4 @@
-// hermetic_make launches a pinned dynamically linked GNU make through a
-// pinned musl loader. It also points recursive make invocations back at this
-// statically linked launcher.
+// hermetic_bash launches a pinned GNU Bash through its pinned musl runtime.
 package main
 
 import (
@@ -12,9 +10,9 @@ import (
 )
 
 var (
-	loaderPath  string
+	bashPath    string
 	libraryPath string
-	makePath    string
+	loaderPath  string
 )
 
 func absolute(path string) (string, error) {
@@ -50,57 +48,49 @@ func executionRoot() (string, error) {
 	return root, nil
 }
 
-func environmentWithMake(path string) []string {
-	environment := make([]string, 0, len(os.Environ())+1)
-	for _, entry := range os.Environ() {
-		if strings.HasPrefix(entry, "MAKE=") {
-			continue
-		}
-		environment = append(environment, entry)
-	}
-	return append(environment, "MAKE="+path)
-}
-
 func run() error {
 	loader, err := absolute(loaderPath)
 	if err != nil {
 		return fmt.Errorf("resolve musl loader: %w", err)
 	}
-	libraries, err := absolute(libraryPath)
+	if _, err := os.Stat(loader); err != nil {
+		return fmt.Errorf("access musl loader %q: %w", loader, err)
+	}
+	bash, err := absolute(bashPath)
 	if err != nil {
-		return fmt.Errorf("resolve musl libraries: %w", err)
+		return fmt.Errorf("resolve Bash: %w", err)
 	}
-	makeBinary, err := absolute(makePath)
+	if _, err := os.Stat(bash); err != nil {
+		return fmt.Errorf("access Bash %q: %w", bash, err)
+	}
+	libraries, err := absoluteLibraryPath(libraryPath)
 	if err != nil {
-		return fmt.Errorf("resolve GNU make: %w", err)
+		return err
 	}
-	launcher, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve launcher: %w", err)
-	}
-	launcher, err = filepath.Abs(launcher)
-	if err != nil {
-		return fmt.Errorf("make launcher absolute: %w", err)
-	}
-
-	arguments := []string{
-		loader,
-		"--library-path",
-		libraries,
-		"--argv0",
-		launcher,
-		makeBinary,
-	}
+	arguments := []string{loader, "--library-path", libraries, bash}
 	arguments = append(arguments, os.Args[1:]...)
-	if err := syscall.Exec(loader, arguments, environmentWithMake(launcher)); err != nil {
-		return fmt.Errorf("execute GNU make: %w", err)
+	if err := syscall.Exec(loader, arguments, os.Environ()); err != nil {
+		return fmt.Errorf("execute Bash: %w", err)
 	}
 	return nil
 }
 
+func absoluteLibraryPath(value string) (string, error) {
+	paths := filepath.SplitList(value)
+	resolved := make([]string, 0, len(paths))
+	for _, path := range paths {
+		absolutePath, err := absolute(path)
+		if err != nil {
+			return "", fmt.Errorf("resolve Bash library path: %w", err)
+		}
+		resolved = append(resolved, absolutePath)
+	}
+	return strings.Join(resolved, ":"), nil
+}
+
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "hermetic make: %v\n", err)
+		fmt.Fprintf(os.Stderr, "hermetic Bash: %v\n", err)
 		os.Exit(127)
 	}
 }

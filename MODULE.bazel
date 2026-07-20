@@ -1,6 +1,6 @@
 module(
     name = "rules_fips",
-    version = "0.1.0",
+    version = "0.2.0",
     bazel_compatibility = [">=9.2.0"],
 )
 
@@ -23,7 +23,7 @@ http_file = use_repo_rule(
 )
 
 http_archive(
-    name = "fips_busybox_exec",
+    name = "fips_busybox_exec_amd64",
     build_file = "//fips/private:busybox.BUILD.bazel",
     sha256 = "b0d6cfc585d7fdd12df359cc5d38d5e45894e9e9e78c4059eb41577d022ec734",
     type = "tar.gz",
@@ -31,11 +31,27 @@ http_archive(
 )
 
 http_archive(
-    name = "fips_make_exec",
+    name = "fips_busybox_exec_arm64",
+    build_file = "//fips/private:busybox.BUILD.bazel",
+    sha256 = "965777e06b94bf11981d5f4ecdfcd577879f4b0dda544294d1dd3f72b217bc75",
+    type = "tar.gz",
+    urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/busybox-static-1.37.0-r31.apk"],
+)
+
+http_archive(
+    name = "fips_make_exec_amd64",
     build_file = "//fips/private:make.BUILD.bazel",
     sha256 = "a916626a876f64c6b6fb32a6bf0fa93351d09fae0aa7684135642390da647e60",
     type = "tar.gz",
     urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/make-4.4.1-r4.apk"],
+)
+
+http_archive(
+    name = "fips_make_exec_arm64",
+    build_file = "//fips/private:make.BUILD.bazel",
+    sha256 = "0a2c6c3fa0d90b652bbaeac362d1bfe54b75aae57631a6b448826f8b51c85170",
+    type = "tar.gz",
+    urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/make-4.4.1-r4.apk"],
 )
 
 http_file(
@@ -43,13 +59,6 @@ http_file(
     downloaded_file_path = "compiler-rt-22.1.3-LICENSE.txt",
     sha256 = "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
     urls = ["https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-22.1.3/compiler-rt/LICENSE.TXT"],
-)
-
-http_file(
-    name = "go_1_26_5_license",
-    downloaded_file_path = "go-1.26.5-LICENSE.txt",
-    sha256 = "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
-    urls = ["https://raw.githubusercontent.com/golang/go/go1.26.5/LICENSE"],
 )
 
 filtered_archive = use_repo_rule(
@@ -74,7 +83,8 @@ use_repo(
 fips_sources = use_extension("//fips:extensions.bzl", "fips_sources")
 use_repo(
     fips_sources,
-    "elixir_src",
+    "fips_bash_exec_amd64",
+    "fips_bash_exec_arm64",
     "fips_llvm_musl_amd64",
     "fips_qemu_aarch64",
     "musl_amd64_sysroot",
@@ -82,7 +92,6 @@ use_repo(
     "musl_src",
     "openssl_core_src",
     "openssl_fips_src",
-    "otp_src",
 )
 
 register_toolchains(

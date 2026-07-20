@@ -3,20 +3,20 @@
 load(
     "@rules_fips//fips:defs.bzl",
     "FipsCryptoInfo",
+    "FipsCryptoSdkInfo",
     "FipsPlatformInfo",
-    "FipsRuntimeInfo",
-    "fips_elixir_distribution",
-    "fips_elixir_runtime",
+    "fips_crypto_sdk",
     "openssl_fips",
+    "openssl_fips_sdk",
 )
 
 _PUBLIC_API = (
     FipsCryptoInfo,
+    FipsCryptoSdkInfo,
     FipsPlatformInfo,
-    FipsRuntimeInfo,
-    fips_elixir_distribution,
-    fips_elixir_runtime,
+    fips_crypto_sdk,
     openssl_fips,
+    openssl_fips_sdk,
 )
 
 def _rules_fips_smoke_impl(ctx):

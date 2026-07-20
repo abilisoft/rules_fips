@@ -107,4 +107,4 @@ bazel build --config=local //fips:source_pins
 
 The resulting JSON shows the resolved URL list, SHA-256, strip prefix, version,
 catalog status, and provider certificate reference. Review it before spending
-time on an OTP/Elixir build.
+time on an SDK or downstream consumer build.

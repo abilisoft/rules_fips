@@ -1,9 +1,8 @@
 """Machine-readable identities for the source bytes selected by Bzlmod."""
 
-load("@elixir_src//:rules_fips_source.bzl", _ELIXIR_SOURCE = "SOURCE")
+load("@musl_src//:rules_fips_source.bzl", _MUSL_SOURCE = "SOURCE")
 load("@openssl_core_src//:rules_fips_source.bzl", _OPENSSL_CORE_SOURCE = "SOURCE")
 load("@openssl_fips_src//:rules_fips_source.bzl", _OPENSSL_FIPS_SOURCE = "SOURCE")
-load("@otp_src//:rules_fips_source.bzl", _OTP_SOURCE = "SOURCE")
 
 def _source_pin_manifest_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name + ".json")
@@ -12,13 +11,12 @@ def _source_pin_manifest_impl(ctx):
         output = output,
         content = json.encode_indent({
             "compliance_claim": "none",
-            "elixir": _source_identity(_ELIXIR_SOURCE),
+            "musl": _source_identity(_MUSL_SOURCE),
             "openssl": {
                 "certificate_reference": openssl_certificate,
                 "core": _source_identity(_OPENSSL_CORE_SOURCE),
                 "provider": _source_identity(_OPENSSL_FIPS_SOURCE),
             },
-            "otp": _source_identity(_OTP_SOURCE),
             "schema": 1,
         }, indent = "  ") + "\n",
     )

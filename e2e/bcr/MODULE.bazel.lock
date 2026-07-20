@@ -248,31 +248,15 @@
     },
     "@@rules_fips+//fips:extensions.bzl%fips_sources": {
       "general": {
-        "bzlTransitiveDigest": "QiTMfJgWuuMIGMpcpjMpvFQiQ/eb2qpnhhwv0oAYukg=",
-        "usagesDigest": "ktPyZXDGi4cnSfrdwar//kHYcjK47bd/qUUDfs9BCpU=",
+        "bzlTransitiveDigest": "NQnRV+fah/u+pq9nQ2+vDOeQhTPa8XAHdcDdqfJEG/4=",
+        "usagesDigest": "e39i9MBDx+RAVEPmYsv0w0Xqnz0SO18J3M5XdlUE4lc=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
-          "elixir_src": {
-            "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_source_repo",
-            "attributes": {
-              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "catalog_entry": true,
-              "preserve_empty_dirs": false,
-              "sha256": "1a25bbf9a9016651fc332eecc02bb9681d0b8e722c2e256e73ddb88fbce6e6b0",
-              "strip_prefix": "elixir-1.20.2",
-              "archive_type": "",
-              "urls": [
-                "https://github.com/elixir-lang/elixir/archive/refs/tags/v1.20.2.tar.gz"
-              ],
-              "version": "1.20.2"
-            }
-          },
           "openssl_core_src": {
             "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
               "catalog_entry": true,
-              "preserve_empty_dirs": false,
               "sha256": "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
               "strip_prefix": "openssl-3.5.7",
               "archive_type": "",
@@ -287,7 +271,6 @@
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
               "catalog_entry": true,
-              "preserve_empty_dirs": false,
               "sha256": "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
               "strip_prefix": "openssl-3.1.2",
               "archive_type": "",
@@ -297,27 +280,11 @@
               "version": "3.1.2"
             }
           },
-          "otp_src": {
-            "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_source_repo",
-            "attributes": {
-              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
-              "catalog_entry": true,
-              "preserve_empty_dirs": true,
-              "sha256": "edef13778a449490bc183134e442a955b134d69c56075d97765d8d4951d8d2bb",
-              "strip_prefix": "otp-OTP-29.0.3",
-              "archive_type": "",
-              "urls": [
-                "https://github.com/erlang/otp/archive/refs/tags/OTP-29.0.3.tar.gz"
-              ],
-              "version": "29.0.3"
-            }
-          },
           "musl_src": {
             "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_source_repo",
             "attributes": {
               "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"srcs\",\n    srcs = glob([\"**\"], exclude = [\".git/**\"]),\n)\n\nexports_files(glob([\"*\"]))\n",
               "catalog_entry": true,
-              "preserve_empty_dirs": false,
               "sha256": "79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
               "strip_prefix": "musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083",
               "archive_type": "",
@@ -388,6 +355,36 @@
                 "zlib-1.3.2-r0|6e5dd88eb04341f673a40977a2d36bbe825ac772edddd2951192dcff76b9c49e",
                 "zstd-libs-1.5.7-r2|5025e2207b44a131f1b2262761187d88500829c2171d566d37a1225246fe542e"
               ]
+            }
+          },
+          "fips_bash_exec_amd64": {
+            "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_apk_sysroot_repo",
+            "attributes": {
+              "arch": "x86_64",
+              "branch": "v3.24",
+              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"runtime\",\n    srcs = glob(\n        [\"**\"],\n        exclude = [\n            \".PKGINFO\",\n            \".SIGN.*\",\n            \"BUILD.bazel\",\n        ],\n    ),\n)\n\nexports_files([\"bin/bash\"])\n",
+              "packages": [
+                "bash-5.3.9-r1|4ad962f26fb3c68365171233fe61e3c51bbee1cab35e8dc661198233daeab0dd",
+                "readline-8.3.3-r1|766911ecb986a6c5cf0841a6b556cd1e9dbbf22b3559726de32416486cd15c81",
+                "libncursesw-6.6_p20260516-r0|cf8caa8a88bc4ce9d9e395567fefaf9ef7fbd55c50ae6155b35c1b58f3755023",
+                "ncurses-terminfo-base-6.6_p20260516-r0|ce83be6d0bd10584a53c3a5868cc1595ce5f0f8e0b621f8f7f70b6144e521fc9"
+              ],
+              "repository": "main"
+            }
+          },
+          "fips_bash_exec_arm64": {
+            "repoRuleId": "@@rules_fips+//fips:extensions.bzl%_apk_sysroot_repo",
+            "attributes": {
+              "arch": "aarch64",
+              "branch": "v3.24",
+              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"runtime\",\n    srcs = glob(\n        [\"**\"],\n        exclude = [\n            \".PKGINFO\",\n            \".SIGN.*\",\n            \"BUILD.bazel\",\n        ],\n    ),\n)\n\nexports_files([\"bin/bash\"])\n",
+              "packages": [
+                "bash-5.3.9-r1|95f4f976bdf2f4ca18ff41c32916eb6d7b12a0dae12504d55d04427460d6542f",
+                "readline-8.3.3-r1|9f0ae0923c02b0d6aba62e9173542b65396ba3f0efefcbf087ea32f1120e7b34",
+                "libncursesw-6.6_p20260516-r0|51a7aa4b3ec40b144d0801c0544e0a9f62e2a41d04b6067bb5e95786040741c6",
+                "ncurses-terminfo-base-6.6_p20260516-r0|e0c546b9461bdce206a90bc720cb69aa4628b5a5b8d908c3e5084e00f28f6a9d"
+              ],
+              "repository": "main"
             }
           },
           "fips_qemu_aarch64": {

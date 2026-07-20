@@ -43,12 +43,30 @@ jobs:
         run: git diff-tree --check --root -r HEAD
       - name: Test repository tools
         run: go test ./tools/...
+      - name: Vet repository tools
+        run: go vet ./tools/...
       - name: Check Bazel and Starlark formatting
         run: >-
           bazel test
           ${BAZEL_REMOTE_FALLBACK}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //tools/buildifier:test
+      - name: Analyze the exported AMD64 SDK from an external module
+        working-directory: e2e/bcr
+        run: >-
+          bazel build --nobuild
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=@rules_fips//fips/platforms:linux_amd64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //:external_sdk
+      - name: Analyze the exported Arm64 SDK from an external module
+        working-directory: e2e/bcr
+        run: >-
+          bazel build --nobuild
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=@rules_fips//fips/platforms:linux_arm64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //:external_sdk
 
   analysis:
     name: Bazel analysis (${{ matrix.platform }})
@@ -68,16 +86,16 @@ jobs:
           bazelisk-cache: true
           disk-cache: true
           repository-cache: true
-      - name: Analyze distribution
+      - name: Analyze SDK
         run: >-
           bazel build --nobuild
           ${BAZEL_REMOTE_FALLBACK}
           --config=${{ matrix.platform }}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
-          //examples:elixir_openssl_fips
+          //examples:openssl_fips_sdk
 
   distributions:
-    name: Distribution (${{ matrix.platform }})
+    name: SDK (${{ matrix.platform }})
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -94,10 +112,10 @@ jobs:
           bazelisk-cache: true
           disk-cache: true
           repository-cache: true
-      - name: Build distribution
+      - name: Build SDK
         run: >-
           bazel build
           ${BAZEL_REMOTE_FALLBACK}
           --config=${{ matrix.platform }}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
-          //examples:elixir_openssl_fips
+          //examples:openssl_fips_sdk

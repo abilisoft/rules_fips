@@ -19,8 +19,6 @@ filegroup(
 exports_files(glob(["*"]))
 """
 
-_OTP_SOURCE_BUILD = _SOURCE_BUILD
-
 _APK_SYSROOT_BUILD = """
 package(default_visibility = ["//visibility:public"])
 
@@ -75,6 +73,24 @@ filegroup(
 exports_files(["usr/bin/qemu-aarch64"])
 """
 
+_APK_BASH_BUILD = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "runtime",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".PKGINFO",
+            ".SIGN.*",
+            "BUILD.bazel",
+        ],
+    ),
+)
+
+exports_files(["bin/bash"])
+"""
+
 _APK_SYSROOTS = {
     "musl_amd64_sysroot": [
         ("musl-1.2.6-r2", "573712e2f49c15bfc20a2699f204acdfc74c772722b15e7353d768057fae0e71"),
@@ -123,7 +139,33 @@ _APK_EXEC_TOOLCHAINS = {
 }
 
 _APK_EXEC_TOOLS = {
+    "fips_bash_exec_amd64": struct(
+        arch = "x86_64",
+        branch = "v3.24",
+        build_file_content = _APK_BASH_BUILD,
+        packages = [
+            ("bash-5.3.9-r1", "4ad962f26fb3c68365171233fe61e3c51bbee1cab35e8dc661198233daeab0dd"),
+            ("readline-8.3.3-r1", "766911ecb986a6c5cf0841a6b556cd1e9dbbf22b3559726de32416486cd15c81"),
+            ("libncursesw-6.6_p20260516-r0", "cf8caa8a88bc4ce9d9e395567fefaf9ef7fbd55c50ae6155b35c1b58f3755023"),
+            ("ncurses-terminfo-base-6.6_p20260516-r0", "ce83be6d0bd10584a53c3a5868cc1595ce5f0f8e0b621f8f7f70b6144e521fc9"),
+        ],
+        repository = "main",
+    ),
+    "fips_bash_exec_arm64": struct(
+        arch = "aarch64",
+        branch = "v3.24",
+        build_file_content = _APK_BASH_BUILD,
+        packages = [
+            ("bash-5.3.9-r1", "95f4f976bdf2f4ca18ff41c32916eb6d7b12a0dae12504d55d04427460d6542f"),
+            ("readline-8.3.3-r1", "9f0ae0923c02b0d6aba62e9173542b65396ba3f0efefcbf087ea32f1120e7b34"),
+            ("libncursesw-6.6_p20260516-r0", "51a7aa4b3ec40b144d0801c0544e0a9f62e2a41d04b6067bb5e95786040741c6"),
+            ("ncurses-terminfo-base-6.6_p20260516-r0", "e0c546b9461bdce206a90bc720cb69aa4628b5a5b8d908c3e5084e00f28f6a9d"),
+        ],
+        repository = "main",
+    ),
     "fips_qemu_aarch64": struct(
+        arch = "x86_64",
+        branch = "edge",
         build_file_content = _APK_QEMU_BUILD,
         packages = [
             ("qemu-aarch64-11.0.2-r1", "3b3f92732d706e87bfd31a81186e47b42b50d742e55b13ead2c48043f3c76a26"),
@@ -131,26 +173,6 @@ _APK_EXEC_TOOLS = {
         repository = "community",
     ),
 }
-
-def _preserve_empty_directories(repository_ctx):
-    empty_dirs = []
-    pending = [(repository_ctx.path("."), "")]
-    for _ in range(256):
-        if not pending:
-            return sorted(empty_dirs)
-        next_directories = []
-        for directory, relative in pending:
-            entries = directory.readdir(watch = "no")
-            if not entries and relative:
-                repository_ctx.file(relative + "/.rules_fips_keep", "")
-                empty_dirs.append(relative)
-                continue
-            for entry in entries:
-                if entry.is_dir:
-                    child = entry.basename if not relative else relative + "/" + entry.basename
-                    next_directories.append((entry, child))
-        pending = next_directories
-    fail("source archive exceeds the supported directory depth")
 
 def _source_repo_impl(repository_ctx):
     repository_ctx.download_and_extract(
@@ -178,12 +200,6 @@ def _source_repo_impl(repository_ctx):
             repository_ctx.attr.urls,
         ),
     )
-    if repository_ctx.attr.preserve_empty_dirs:
-        empty_dirs = _preserve_empty_directories(repository_ctx)
-        repository_ctx.file(
-            "rules_fips_empty_dirs.txt",
-            "\n".join(["./" + path for path in empty_dirs]) + "\n",
-        )
 
 _source_repo = repository_rule(
     implementation = _source_repo_impl,
@@ -191,7 +207,6 @@ _source_repo = repository_rule(
         "archive_type": attr.string(),
         "build_file_content": attr.string(mandatory = True),
         "catalog_entry": attr.bool(),
-        "preserve_empty_dirs": attr.bool(),
         "sha256": attr.string(mandatory = True),
         "strip_prefix": attr.string(),
         "urls": attr.string_list(mandatory = True),
@@ -231,20 +246,8 @@ _apk_sysroot_repo = repository_rule(
 )
 
 _DEFAULT_SOURCES = {
-    "elixir_src": struct(
-        urls = ["https://github.com/elixir-lang/elixir/archive/refs/tags/v1.20.2.tar.gz"],
-        sha256 = "1a25bbf9a9016651fc332eecc02bb9681d0b8e722c2e256e73ddb88fbce6e6b0",
-        strip_prefix = "elixir-1.20.2",
-        version = "1.20.2",
-    ),
     "openssl_core_src": OPENSSL_CORE_RELEASES[DEFAULT_OPENSSL_CORE_VERSION],
     "openssl_fips_src": OPENSSL_FIPS_PROVIDER_RELEASES[DEFAULT_OPENSSL_FIPS_PROVIDER_VERSION],
-    "otp_src": struct(
-        urls = ["https://github.com/erlang/otp/archive/refs/tags/OTP-29.0.3.tar.gz"],
-        sha256 = "edef13778a449490bc183134e442a955b134d69c56075d97765d8d4951d8d2bb",
-        strip_prefix = "otp-OTP-29.0.3",
-        version = "29.0.3",
-    ),
     "musl_src": struct(
         urls = ["https://git.musl-libc.org/cgit/musl/snapshot/musl-b306b16af15c89a04d8e0c55cac2dadbeb39c083.tar.gz"],
         sha256 = "79325f4b37bc827346c45556787b0441f7cacad70a2362484e7e169e072fb7a5",
@@ -316,9 +319,8 @@ def _fips_sources_impl(module_ctx):
         source = overrides.get(name, default)
         _source_repo(
             name = name,
-            build_file_content = _OTP_SOURCE_BUILD if name == "otp_src" else _SOURCE_BUILD,
+            build_file_content = _SOURCE_BUILD,
             catalog_entry = name not in overrides,
-            preserve_empty_dirs = name == "otp_src",
             sha256 = source.sha256,
             strip_prefix = source.strip_prefix,
             archive_type = "",
@@ -346,8 +348,8 @@ def _fips_sources_impl(module_ctx):
     for name, tool in _APK_EXEC_TOOLS.items():
         _apk_sysroot_repo(
             name = name,
-            arch = "x86_64",
-            branch = "edge",
+            arch = tool.arch,
+            branch = tool.branch,
             build_file_content = tool.build_file_content,
             packages = ["%s|%s" % package for package in tool.packages],
             repository = tool.repository,

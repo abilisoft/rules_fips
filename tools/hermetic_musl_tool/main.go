@@ -32,15 +32,30 @@ func absoluteFromExecutionRoot(path string) (string, error) {
 	if filepath.IsAbs(path) {
 		return path, nil
 	}
-	root := os.Getenv("RULES_FIPS_EXEC_ROOT")
-	if root == "" {
-		var err error
-		root, err = os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("get working directory: %w", err)
-		}
+	root, err := executionRoot()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(root, path), nil
+}
+
+func executionRoot() (string, error) {
+	if root := os.Getenv("RULES_FIPS_EXEC_ROOT"); root != "" {
+		return root, nil
+	}
+	invoked, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		return "", fmt.Errorf("resolve launcher path: %w", err)
+	}
+	marker := string(filepath.Separator) + "bazel-out" + string(filepath.Separator)
+	if index := strings.Index(invoked, marker); index > 0 {
+		return invoked[:index], nil
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get working directory: %w", err)
+	}
+	return root, nil
 }
 
 func run() error {

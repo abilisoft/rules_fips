@@ -6,8 +6,8 @@ smallest coherent change, and report only checks that actually ran.
 
 ## Mission
 
-Preserve a reproducible OpenSSL-backed OTP/Elixir build whose launcher requires
-FIPS mode, without turning engineering evidence into a compliance claim.
+Preserve a reproducible, backend-owned OpenSSL FIPS SDK that language rule sets
+can consume without turning engineering evidence into a compliance claim.
 
 ## Hard rules
 
@@ -24,8 +24,8 @@ FIPS mode, without turning engineering evidence into a compliance claim.
    credentials.
 6. Keep exact versions, URLs, SHA-256 values, strip prefixes, manifests, BCR
    templates, docs, and module lockfiles consistent.
-7. Treat AMD64 and Arm64 as distinct outputs. A cross-build is not a native
-   runtime test.
+7. Treat AMD64 and Arm64 as distinct outputs. QEMU provider execution is not a
+   native-hardware result.
 8. Never edit `MODULE.bazel.lock` manually.
 
 ## Read before acting
@@ -36,10 +36,10 @@ Read the smallest relevant chain:
 2. `fips/versions.bzl` — tested OpenSSL catalog.
 3. `fips/extensions.bzl` — exact source resolution and overrides.
 4. `fips/defs.bzl` — public API.
-5. `fips/foreign_crypto.bzl` and `fips/foreign_otp.bzl` — real build flags.
-6. `tools/fips_artifact_validator/main.go` and
-   `tools/runtime_packager/main.go` — checks and evidence semantics.
-7. The relevant human guide under `docs/`.
+5. `fips/foreign_crypto.bzl` — real OpenSSL build flags.
+6. `fips/crypto_sdk.bzl` — normalized build/deployment contract.
+7. `tools/fips_artifact_validator/main.go` — checks and evidence semantics.
+8. The relevant human guide under `docs/`.
 
 If prose and executable configuration disagree, do not choose the nicer story.
 Fix the disagreement.
@@ -47,14 +47,14 @@ Fix the disagreement.
 ## Public API
 
 Until the module is published to BCR, pin the full verified commit referenced
-by the signed `v0.1.0` tag, following
+by the signed `v0.2.0` tag, following
 [Publishing](../publishing.md#consume-before-bcr). Never track a branch or tag.
 
 ```starlark
-load("@rules_fips//fips:defs.bzl", "fips_elixir_distribution")
+load("@rules_fips//fips:defs.bzl", "openssl_fips_sdk")
 
-fips_elixir_distribution(
-    name = "elixir_fips",
+openssl_fips_sdk(
+    name = "crypto_sdk",
 )
 ```
 
@@ -75,11 +75,10 @@ Do not report a higher level than completed:
 3. **Bazel load** — `bazel query //...`.
 4. **Bazel analysis** — analyze the explicit affected target and platform.
 5. **Crypto build** — build the affected `_crypto` target.
-6. **Distribution build** — build the full example target. The Arm64 build
-   runs its provider and BEAM checks under the pinned QEMU emulator; report
-   that as emulated target execution, not native execution.
-7. **Native runtime** — execute the archive on its target architecture and
-   inspect both manifests.
+6. **SDK build** — build the full example target. The Arm64 build runs provider
+   checks under pinned QEMU; report that as emulated target execution.
+7. **Consumer integration** — run the downstream language/runtime matrix. Do
+   not report consumer behavior as a rules_fips-owned check.
 
 Use `--config=local` only when intentionally disabling configured remote
 services. Do not imply that local execution used the digest-pinned remote
@@ -89,9 +88,9 @@ userspace.
 
 ### Build
 
-Determine the target architecture. Build the explicit example or consumer
-target. Report the archive and JSON evidence paths, the target architecture,
-and the highest completed validation level.
+Determine the target architecture. Build the explicit SDK or consumer target.
+Report the SDK/evidence paths, target architecture, and highest completed
+validation level.
 
 ### Version change
 
@@ -104,8 +103,8 @@ the affected matrix. Follow [Maintenance](../maintenance.md).
 
 First build `//fips:source_pins` and inspect `catalog_entry`, resolved version,
 URL, digest, and certificate reference. Then separate fetch, configure,
-compile, package, and runtime failures. Do not “solve” incompatibility with a
-source patch.
+compile, provider-check, and SDK-assembly failures. Do not “solve”
+incompatibility with a source patch.
 
 ### Documentation
 
@@ -117,7 +116,7 @@ against code. Preserve the claim boundary in [FIPS model](../fips-model.md).
 Follow [Publishing](../publishing.md). Match `MODULE.bazel` to the intended
 signed tag, regenerate lockfiles with Bazel, and build the standalone
 `e2e/bcr` consumer. Treat that consumer as module/API evidence only; it does
-not replace either architecture's distribution build. Never dispatch the
+not replace either architecture's SDK build and provider check. Never dispatch the
 manual BCR publisher unless the user explicitly authorizes registry
 publication.
 

@@ -4,21 +4,45 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("//fips:providers.bzl", "FipsCryptoInfo")
 load("//fips:source_versions.bzl", "OPENSSL_CORE_SOURCE", "OPENSSL_FIPS_CERTIFICATE_REFERENCE", "OPENSSL_FIPS_SOURCE")
 
-_TOOLCHAIN_TYPE = "//fips:toolchain_type"
-_TARGET_AMD64 = "//fips/platforms:target_amd64"
-_TARGET_ARM64 = "//fips/platforms:target_arm64"
+_TOOLCHAIN_TYPE = Label("//fips:toolchain_type")
+_TARGET_AMD64 = Label("//fips/platforms:target_amd64")
+_TARGET_ARM64 = Label("//fips/platforms:target_arm64")
+_FOREIGN_PERL = Label("//fips/toolchains:foreign_perl")
+_FOREIGN_TOOLBOX = Label("//fips/toolchains:foreign_toolbox")
+_FOREIGN_TOOLBOX_SHELL = Label("//fips/toolchains:foreign_toolbox_shell")
+_LLVM_MUSL = Label("//fips/toolchains:llvm_musl")
+_LLVM_TOOLS = {
+    name: Label("//fips/toolchains:llvm_musl/bin/{}".format(name))
+    for name in [
+        "ar",
+        "clang",
+        "clang++",
+        "ld.lld",
+        "nm",
+        "objcopy",
+        "objdump",
+        "ranlib",
+        "readelf",
+        "strip",
+    ]
+}
+_MUSL_AMD64_SYSROOT = Label("@musl_amd64_sysroot//:sysroot")
+_MUSL_AMD64_MARKER = Label("@musl_amd64_sysroot//:usr/include/stdio.h")
+_MUSL_ARM64_SYSROOT = Label("@musl_arm64_sysroot//:sysroot")
+_MUSL_ARM64_MARKER = Label("@musl_arm64_sysroot//:usr/include/stdio.h")
+_OPENSSL_CORE_SOURCE = Label("@openssl_core_src//:srcs")
+_OPENSSL_FIPS_SOURCE = Label("@openssl_fips_src//:srcs")
 
 def _llvm_tool(name):
-    return "$(execpath //fips/toolchains:llvm_musl/bin/%s)" % name
+    return "$(execpath {})".format(_LLVM_TOOLS[name])
 
 def _toolbox_shell():
-    return "$(execpath //fips/toolchains:foreign_toolbox_shell)"
+    return "$(execpath {})".format(_FOREIGN_TOOLBOX_SHELL)
 
 def _foreign_path():
     return ":".join([
         "$$(dirname %s)" % _toolbox_shell(),
-        "$$(dirname $(execpath //fips/toolchains:foreign_perl))",
-        "/bin",
+        "$$(dirname $(execpath {}))".format(_FOREIGN_PERL),
     ])
 
 def _file_named(files, basename):
@@ -36,7 +60,7 @@ def _directory_named(files, basename):
 def _sysroot(marker):
     return "$$(dirname $$(dirname $$(dirname $(execpath %s))))" % marker
 
-def _openssl_env(marker, triplet, loader):
+def _openssl_env(marker, triplet):
     sysroot = _sysroot(marker)
     resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
     compile_flags = " ".join([
@@ -57,8 +81,8 @@ def _openssl_env(marker, triplet, loader):
         "-fuse-ld=" + _llvm_tool("ld.lld"),
         "-Wl,-S",
         "-Wl,-z,relro,-z,now",
-        "-Wl,--dynamic-linker=/opt/fips-elixir/lib/" + loader,
-        "-Wl,-rpath,/opt/fips-elixir/lib",
+        "-Wl,--dynamic-linker=/proc/self/cwd/lib/ld-musl.so.1",
+        "-Wl,-rpath,/proc/self/cwd/lib",
     ])
     return {
         "AR": _llvm_tool("ar"),
@@ -73,7 +97,7 @@ def _openssl_env(marker, triplet, loader):
         "NM": _llvm_tool("nm"),
         "OBJCOPY": _llvm_tool("objcopy"),
         "OBJDUMP": _llvm_tool("objdump"),
-        "PERL": "$(execpath //fips/toolchains:foreign_perl)",
+        "PERL": "$(execpath {})".format(_FOREIGN_PERL),
         "PATH": _foreign_path(),
         "READELF": _llvm_tool("readelf"),
         "SOURCE_DATE_EPOCH": "0",
@@ -191,21 +215,21 @@ _openssl_finalize = rule(
         "core": attr.label(mandatory = True),
         "core_license": attr.label(
             allow_single_file = True,
-            default = "@openssl_core_src//:LICENSE.txt",
+            default = Label("@openssl_core_src//:LICENSE.txt"),
         ),
         "fips_license": attr.label(
             allow_single_file = True,
-            default = "@openssl_fips_src//:LICENSE.txt",
+            default = Label("@openssl_fips_src//:LICENSE.txt"),
         ),
         "openssl_config": attr.label(
             allow_single_file = [".cnf"],
-            default = "//runtime:openssl-fips.cnf",
+            default = Label("//runtime:openssl-fips.cnf"),
         ),
         "provider": attr.label(mandatory = True),
         "validator": attr.label(
             allow_single_file = True,
             cfg = "exec",
-            default = "//fips/private:fips_artifact_validator",
+            default = Label("//fips/private:fips_artifact_validator"),
             executable = True,
         ),
     },
@@ -214,36 +238,34 @@ _openssl_finalize = rule(
 
 def _openssl_foreign_build_data():
     return [
-        "//fips/toolchains:foreign_toolbox",
-        "//fips/toolchains:foreign_toolbox_shell",
-        "//fips/toolchains:llvm_musl",
-        "//fips/toolchains:llvm_musl/bin/ar",
-        "//fips/toolchains:llvm_musl/bin/clang",
-        "//fips/toolchains:llvm_musl/bin/clang++",
-        "//fips/toolchains:llvm_musl/bin/ld.lld",
-        "//fips/toolchains:llvm_musl/bin/nm",
-        "//fips/toolchains:llvm_musl/bin/objcopy",
-        "//fips/toolchains:llvm_musl/bin/objdump",
-        "//fips/toolchains:llvm_musl/bin/ranlib",
-        "//fips/toolchains:llvm_musl/bin/readelf",
-        "//fips/toolchains:llvm_musl/bin/strip",
-        "//fips/toolchains:foreign_perl",
+        _FOREIGN_TOOLBOX,
+        _FOREIGN_TOOLBOX_SHELL,
+        _LLVM_MUSL,
+        _LLVM_TOOLS["ar"],
+        _LLVM_TOOLS["clang"],
+        _LLVM_TOOLS["clang++"],
+        _LLVM_TOOLS["ld.lld"],
+        _LLVM_TOOLS["nm"],
+        _LLVM_TOOLS["objcopy"],
+        _LLVM_TOOLS["objdump"],
+        _LLVM_TOOLS["ranlib"],
+        _LLVM_TOOLS["readelf"],
+        _LLVM_TOOLS["strip"],
+        _FOREIGN_PERL,
     ] + select({
-        _TARGET_AMD64: ["@musl_amd64_sysroot//:sysroot", "@musl_amd64_sysroot//:usr/include/stdio.h"],
-        _TARGET_ARM64: ["@musl_arm64_sysroot//:sysroot", "@musl_arm64_sysroot//:usr/include/stdio.h"],
+        _TARGET_AMD64: [_MUSL_AMD64_SYSROOT, _MUSL_AMD64_MARKER],
+        _TARGET_ARM64: [_MUSL_ARM64_SYSROOT, _MUSL_ARM64_MARKER],
     })
 
 def _openssl_selected_env():
     return select({
         _TARGET_AMD64: _openssl_env(
-            "@musl_amd64_sysroot//:usr/include/stdio.h",
+            _MUSL_AMD64_MARKER,
             "x86_64-alpine-linux-musl",
-            "ld-musl-x86_64.so.1",
         ),
         _TARGET_ARM64: _openssl_env(
-            "@musl_arm64_sysroot//:usr/include/stdio.h",
+            _MUSL_ARM64_MARKER,
             "aarch64-alpine-linux-musl",
-            "ld-musl-aarch64.so.1",
         ),
     })
 
@@ -281,9 +303,9 @@ def openssl_fips(name, visibility = None, tags = None):
             "enable-fips",
             "no-tests",
         ],
-        configure_prefix = "$(execpath //fips/toolchains:foreign_perl)",
+        configure_prefix = "$(execpath {})".format(_FOREIGN_PERL),
         env = _openssl_selected_env(),
-        lib_source = "@openssl_fips_src//:srcs",
+        lib_source = _OPENSSL_FIPS_SOURCE,
         out_include_dir = "",
         out_lib_dir = "lib/ossl-modules",
         out_shared_libs = ["fips.so"],
@@ -305,9 +327,9 @@ def openssl_fips(name, visibility = None, tags = None):
             "no-shared",
             "no-tests",
         ],
-        configure_prefix = "$(execpath //fips/toolchains:foreign_perl)",
+        configure_prefix = "$(execpath {})".format(_FOREIGN_PERL),
         env = _openssl_selected_env(),
-        lib_source = "@openssl_core_src//:srcs",
+        lib_source = _OPENSSL_CORE_SOURCE,
         out_binaries = ["openssl"],
         out_static_libs = ["libcrypto.a", "libssl.a"],
         targets = ["build_sw", "install_sw"],

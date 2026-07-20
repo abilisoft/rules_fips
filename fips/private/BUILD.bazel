@@ -9,6 +9,10 @@ exports_files([
 
 host_go_tool(
     name = "fips_artifact_validator",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
     source = "//tools/fips_artifact_validator:main.go",
     visibility = ["//visibility:public"],
 )

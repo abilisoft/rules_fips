@@ -1,28 +1,24 @@
 # Portability and hermeticity
 
-The output is a relocatable Linux runtime, not a universal executable. The
+The output is a relocatable Linux crypto SDK, not a universal executable. The
 build graph is integrity-pinned, but complete build-userspace isolation depends
 on the selected Bazel execution platform.
 
 ## Deployment boundary
 
-| Bazel config | Target archive | Host packages used at runtime |
+| Bazel config | Target SDK | Host packages required by the SDK runtime |
 | --- | --- | --- |
 | `linux_amd64` | Linux x86-64 + musl | none from the host OpenSSL/glibc stack |
 | `linux_arm64` | Linux AArch64 + musl | none from the host OpenSSL/glibc stack |
 
-The archive carries its OpenSSL FIPS provider, musl loader, and musl libc.
-The launcher starts BEAM and the OpenSSL command through that loader using
-runtime-relative paths; directly executed OTP helper programs are static musl
-executables. The provider is loaded from within the archive. None of these
-components borrows a loader, libc, or OpenSSL installation from the deployment
-machine. Packaging rejects unrecognized dynamically linked helpers, ELF
-interpreters outside the archive prefix, and shared dependencies outside the
-narrow musl allowlist.
+The deployment payload carries its OpenSSL FIPS provider, musl loader, and musl
+libc. Native tools invoke OpenSSL and declared consumer programs through that
+loader using SDK-relative paths. Nothing silently searches for a host OpenSSL
+installation or provider configuration.
 
-Relocation works when the archive remains one tree. The launcher discovers
-paths relative to itself; `/opt/fips-elixir` is the internal ELF and archive
-prefix, not a requirement to modify the host filesystem.
+Relocation works only while the SDK runtime layout remains intact. A consumer
+may re-root the files, but it must preserve the normalized destinations and
+render the declared `{sysroot}` and `{activation_root}` templates.
 
 Portability still has hard edges:
 
@@ -31,7 +27,7 @@ Portability still has hard edges:
 - A container shares the host kernel and does not change CPU architecture.
 - Arm64 build-time runtime checks execute under pinned QEMU user-mode
   emulation; they are not a native-hardware result.
-- Files from different builds must not be mixed.
+- Files from different SDK builds must not be mixed.
 - Technical portability does not establish a certificate-covered operational
   environment.
 
@@ -80,9 +76,8 @@ configuration.
 ## Why musl
 
 musl removes the ordinary deployment dependency on a distribution-specific
-glibc version and makes the remaining dependency set small enough to bundle
-and audit. OTP can statically link its crypto NIF and the OpenSSL core, but
-OpenSSL 3 still loads the FIPS provider as a module. Elixir/OTP applications
-remaining BEAM files is not the cause of that boundary. The portable unit is
-consequently a self-contained archive, not one static executable. musl does
-not make one archive work on every kernel or confer FIPS status.
+glibc version and makes the remaining dependency set small enough to expose
+and audit. A consumer can statically link the OpenSSL core, but OpenSSL 3 still
+loads the FIPS provider as a module. The portable unit is consequently the
+declared SDK runtime payload, not one static executable. musl does not make one
+SDK work on every kernel or confer FIPS status.

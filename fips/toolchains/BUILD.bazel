@@ -5,9 +5,15 @@ load(
     "//fips:toolbox.bzl",
     "foreign_perl",
     "foreign_toolbox",
+    "foreign_toolbox_executable",
+    "foreign_toolbox_posix",
     "foreign_toolbox_shell",
+    "foreign_toolbox_smoke",
+    "hermetic_bash",
+    "hermetic_busybox",
     "hermetic_make",
     "hermetic_musl_toolchain",
+    "host_go_tool",
 )
 load(":cc_toolchain.bzl", "fips_cc_toolchain_config", "musl_static_link_smoke")
 load(
@@ -19,6 +25,10 @@ package(default_visibility = ["//visibility:public"])
 
 hermetic_musl_toolchain(
     name = "llvm_musl",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
     marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     toolchain = "@fips_llvm_musl_amd64//:sysroot",
 )
@@ -101,6 +111,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_amd64",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
@@ -115,6 +126,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_arm64",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
@@ -140,12 +152,130 @@ prebuilt_musl_sysroot(
     sysroot = "@musl_arm64_sysroot//:sysroot",
 )
 
-hermetic_make(
+alias(
+    name = "busybox_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_busybox_exec_arm64//:bin/busybox.static",
+        "//conditions:default": "@fips_busybox_exec_amd64//:bin/busybox.static",
+    }),
+)
+
+alias(
+    name = "make_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_make_exec_arm64//:usr/bin/make",
+        "//conditions:default": "@fips_make_exec_amd64//:usr/bin/make",
+    }),
+)
+
+alias(
+    name = "bash_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_bash_exec_arm64//:bin/bash",
+        "//conditions:default": "@fips_bash_exec_amd64//:bin/bash",
+    }),
+)
+
+alias(
+    name = "bash_exec_runtime",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_bash_exec_arm64//:runtime",
+        "//conditions:default": "@fips_bash_exec_amd64//:runtime",
+    }),
+)
+
+alias(
+    name = "execution_musl",
+    actual = select({
+        "@platforms//cpu:arm64": ":musl_arm64",
+        "//conditions:default": ":musl_amd64",
+    }),
+)
+
+[
+    hermetic_make(
+        name = "hermetic_make_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
     name = "hermetic_make",
+    actual = select({
+        "@platforms//cpu:arm64": ":hermetic_make_arm64",
+        "//conditions:default": ":hermetic_make_amd64",
+    }),
+)
+
+[
+    hermetic_bash(
+        name = "hermetic_bash_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
+    name = "hermetic_bash",
+    actual = select({
+        "@platforms//cpu:arm64": ":hermetic_bash_arm64",
+        "//conditions:default": ":hermetic_bash_amd64",
+    }),
+)
+
+[
+    hermetic_busybox(
+        name = "hermetic_busybox_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
+    name = "hermetic_busybox",
+    actual = select({
+        "@platforms//cpu:arm64": ":hermetic_busybox_arm64",
+        "//conditions:default": ":hermetic_busybox_amd64",
+    }),
+)
+
+host_go_tool(
+    name = "hermetic_exec",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    source = "//tools/hermetic_exec:main.go",
 )
 
 foreign_toolbox(
     name = "foreign_toolbox",
+    busybox = select({
+        "@platforms//cpu:arm64": "@fips_busybox_exec_arm64//:bin/busybox.static",
+        "//conditions:default": "@fips_busybox_exec_amd64//:bin/busybox.static",
+    }),
 )
 
 foreign_toolbox_shell(
@@ -153,8 +283,27 @@ foreign_toolbox_shell(
     toolbox = ":foreign_toolbox",
 )
 
+foreign_toolbox_executable(
+    name = "source_shell",
+    toolbox = ":foreign_toolbox",
+)
+
+foreign_toolbox_posix(
+    name = "posix_tools",
+    toolbox = ":foreign_toolbox",
+)
+
+foreign_toolbox_smoke(
+    name = "foreign_toolbox_smoke",
+    toolbox = ":foreign_toolbox",
+)
+
 foreign_perl(
     name = "foreign_perl",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
 )
 
 native_tool_toolchain(
@@ -168,7 +317,7 @@ native_tool_toolchain(
     (
         filegroup(
             name = "foreign_%s_stub" % tool,
-            srcs = ["@fips_busybox_exec//:bin/busybox.static"],
+            srcs = ["@fips_busybox_exec_amd64//:bin/busybox.static"],
         ),
         native_tool_toolchain(
             name = "foreign_%s_impl" % tool,
@@ -263,6 +412,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_amd64",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
@@ -277,6 +427,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_arm64",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],

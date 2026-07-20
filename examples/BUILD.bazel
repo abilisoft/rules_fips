@@ -1,8 +1,8 @@
-load("//fips:defs.bzl", "fips_elixir_distribution")
+load("//fips:defs.bzl", "openssl_fips_sdk")
 
 package(default_visibility = ["//visibility:public"])
 
-fips_elixir_distribution(
-    name = "elixir_openssl_fips",
+openssl_fips_sdk(
+    name = "openssl_fips_sdk",
     tags = ["manual"],
 )

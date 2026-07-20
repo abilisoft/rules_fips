@@ -1,20 +1,20 @@
 # Maintaining versions and evidence
 
-An ordinary release update and a certificate-referenced provider update are
-not the same operation. Keep source identity, tested status, runtime checks,
-and public language synchronized.
+An ordinary core update and a certificate-referenced provider update are not
+the same operation. Keep source identity, tested status, provider checks, and
+public language synchronized.
 
 ## Sources of truth
 
 | Data | File |
 | --- | --- |
 | Tested OpenSSL catalog and defaults | `fips/versions.bzl` |
-| OTP, Elixir, sysroot, and other source defaults | `fips/extensions.bzl` |
+| musl, sysroot, and execution-tool source defaults | `fips/extensions.bzl` and `MODULE.bazel` |
 | Bazel modules and build-tool archives | `MODULE.bazel` |
 | Resolved source manifest | `fips/metadata.bzl` |
 | OpenSSL build configuration | `fips/foreign_crypto.bzl` |
-| OTP build configuration | `fips/foreign_otp.bzl` |
-| Crypto and runtime evidence fields | `tools/fips_artifact_validator/main.go` and `tools/runtime_packager/main.go` |
+| SDK contract and deployment layout | `fips/crypto_sdk.bzl` |
+| Crypto evidence fields | `tools/fips_artifact_validator/main.go` |
 
 If code, lockfile, generated manifest, and documentation disagree, the update
 is incomplete.
@@ -32,9 +32,9 @@ is incomplete.
    ```
 
 6. Run Go tests and Bazel package analysis.
-7. Build AMD64 and Arm64 crypto targets and full distributions.
-8. Execute each archive on its native architecture.
-9. Inspect both source and runtime evidence manifests.
+7. Build AMD64 and Arm64 SDK targets.
+8. Run provider activation/loading checks for each target architecture.
+9. Inspect the source and crypto evidence manifests.
 10. Only then call the new entry tested or make it the default.
 
 The checked-in `.bazelrc` uses `--lockfile_mode=error`, so normal validation

@@ -22,47 +22,62 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: fips_artifact_validator <openssl|otp> ...")
+		return errors.New("usage: fips_artifact_validator <openssl|stage-crypto-sdk> ...")
 	}
 	switch args[0] {
 	case "openssl":
 		return validateOpenSSL(args[1:])
-	case "otp":
-		return validateOTP(args[1:])
-	case "stage-otp-bootstrap":
-		return stageOTPBootstrap(args[1:])
-	case "stage-otp-tools":
-		return stageOTPTools(args[1:])
+	case "stage-crypto-sdk":
+		return stageCryptoSDK(args[1:])
 	default:
 		return fmt.Errorf("unknown validation mode %q", args[0])
 	}
 }
 
-func stageOTPBootstrap(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("stage-otp-bootstrap: got %d arguments, want 2", len(args))
+func stageCryptoSDK(args []string) error {
+	if len(args) != 10 {
+		return fmt.Errorf("stage-crypto-sdk: got %d arguments, want 10", len(args))
 	}
-	buildRoot, installRoot := absolute(args[0]), absolute(args[1])
-	if err := os.MkdirAll(filepath.Join(buildRoot, "stage"), 0o755); err != nil {
-		return err
-	}
-	destination := filepath.Join(installRoot, "native")
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return err
-	}
-	return copyDirectory(buildRoot, destination)
-}
+	include, libcrypto, libssl := absolute(args[0]), absolute(args[1]), absolute(args[2])
+	openssl, provider, config := absolute(args[3]), absolute(args[4]), absolute(args[5])
+	loader, libc, activation, output := absolute(args[6]), absolute(args[7]), absolute(args[8]), absolute(args[9])
 
-func stageOTPTools(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("stage-otp-tools: got %d arguments, want 2", len(args))
-	}
-	source := filepath.Join(absolute(args[0]), "lib/tools/ebin")
-	destination := filepath.Join(absolute(args[1]), "tools_ebin")
-	if err := os.MkdirAll(destination, 0o755); err != nil {
+	if err := os.RemoveAll(output); err != nil {
 		return err
 	}
-	return copyDirectory(source, destination)
+	for _, directory := range []string{
+		"bin",
+		"include",
+		"lib",
+		"lib/ossl-modules",
+		"ssl",
+	} {
+		if err := os.MkdirAll(filepath.Join(output, directory), 0o755); err != nil {
+			return err
+		}
+	}
+	if err := copyDirectory(include, filepath.Join(output, "include")); err != nil {
+		return fmt.Errorf("stage OpenSSL headers: %w", err)
+	}
+	files := []struct {
+		source      string
+		destination string
+	}{
+		{libcrypto, "lib/libcrypto.a"},
+		{libssl, "lib/libssl.a"},
+		{openssl, "bin/openssl"},
+		{provider, "lib/ossl-modules/fips.so"},
+		{config, "ssl/openssl.cnf"},
+		{loader, "lib/ld-musl.so.1"},
+		{libc, "lib/libc.musl.so.1"},
+		{activation, "bin/crypto-activate"},
+	}
+	for _, file := range files {
+		if err := copyFile(file.source, filepath.Join(output, file.destination)); err != nil {
+			return fmt.Errorf("stage %s: %w", file.destination, err)
+		}
+	}
+	return nil
 }
 
 func validateOpenSSL(args []string) error {
@@ -133,62 +148,6 @@ func validateOpenSSL(args []string) error {
 		"operational_environment_status": operationalEnvironmentStatus,
 		"service_indicator":              "provider-properties-fips=yes",
 	})
-}
-
-func validateOTP(args []string) error {
-	if len(args) != 11 {
-		return fmt.Errorf("otp: got %d arguments, want 11", len(args))
-	}
-	root, backend, loader, libcDir, sysroot := absolute(args[0]), args[1], absolute(args[2]), absolute(args[3]), absolute(args[4])
-	emulator := optionalAbsolute(args[5])
-	if backend != "openssl" {
-		return fmt.Errorf("unsupported OTP crypto backend %q", backend)
-	}
-	opensslConfig, fipsModule, fipsModuleConfig, stamp := absolute(args[6]), absolute(args[7]), absolute(args[8]), absolute(args[9])
-	cryptoVersion := args[10]
-	runtimeRoot := filepath.Join(root, "opt/fips-elixir/lib/erlang")
-	beams, err := filepath.Glob(filepath.Join(runtimeRoot, "erts-*/bin/beam.smp"))
-	if err != nil {
-		return err
-	}
-	if len(beams) != 1 {
-		return fmt.Errorf("expected exactly one installed beam.smp, found %d", len(beams))
-	}
-	beam := beams[0]
-	info, err := os.Stat(beam)
-	if err != nil {
-		return err
-	}
-	if info.Mode()&0o111 == 0 {
-		return fmt.Errorf("installed beam.smp is not executable: %s", beam)
-	}
-	bindir := filepath.Dir(beam)
-	work := stamp + ".work"
-	if err := os.MkdirAll(work, 0o755); err != nil {
-		return err
-	}
-	defer os.RemoveAll(work)
-	environment := map[string]string{
-		"ROOTDIR":  runtimeRoot,
-		"BINDIR":   bindir,
-		"PROGNAME": "erl",
-		"EMU":      "beam",
-	}
-	environment["OPENSSL_CONF"] = opensslConfig
-	environment["OPENSSL_MODULES"] = filepath.Dir(fipsModule)
-	environment["FIPS_MODULE_CONF"] = fipsModuleConfig
-	commandArgs := []string{"--library-path", libcDir + ":" + sysroot + "/usr/lib", beam, "--", "-root", runtimeRoot, "-bindir", bindir, "-progname", "erl", "--", "-home", work, "--", "-crypto", "fips_mode", "true", "-noshell", "-eval", openSSLEval(cryptoVersion)}
-	if err := runMuslCommand(emulator, environment, loader, commandArgs...); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(stamp), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(stamp, []byte("OTP_FIPS_VERIFIED backend="+backend+"\n"), 0o644)
-}
-
-func openSSLEval(version string) string {
-	return fmt.Sprintf(`{ok, _} = application:ensure_all_started(crypto), enabled = crypto:info_fips(), #{link_type := static, fips_provider_available := true, fips_provider_buildinfo := BuildInfo} = crypto:info(), true = string:find(BuildInfo, %q) =/= nomatch, Epmd = filename:join(os:getenv("BINDIR"), "epmd"), Port = open_port({spawn_executable, Epmd}, [{args, ["-help"]}, exit_status, stderr_to_stdout]), Wait = fun Read() -> receive {Port, {data, _}} -> Read(); {Port, {exit_status, _}} -> ok after 10000 -> erlang:error(port_timeout) end end, ok = Wait(), halt(0).`, version)
 }
 
 func absolute(path string) string {
