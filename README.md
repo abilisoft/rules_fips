@@ -3,7 +3,7 @@
 [![CI](https://github.com/abilisoft/rules_fips/actions/workflows/ci.yml/badge.svg)](https://github.com/abilisoft/rules_fips/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/abilisoft/rules_fips/actions/workflows/codeql.yml/badge.svg)](https://github.com/abilisoft/rules_fips/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/abilisoft/rules_fips/badge)](https://securityscorecards.dev/viewer/?uri=github.com/abilisoft/rules_fips)
-[![License](https://img.shields.io/github/license/abilisoft/rules_fips)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Hermetic Bazel rules for building a normalized OpenSSL FIPS crypto SDK. The SDK
 contains static archives and headers for consumers, plus the provider, config,

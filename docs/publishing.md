@@ -10,7 +10,7 @@ FIPS compliance of an application or deployment.
 
 ## Current publication state
 
-[`v0.2.0`](https://github.com/abilisoft/rules_fips/tree/v0.2.0) is the current
+[`v0.2.1`](https://github.com/abilisoft/rules_fips/tree/v0.2.1) is the current
 GitHub release. Registry publication is intentionally deferred. The signed tag
 identifies the source archive; it does not create a BCR entry. The **Release**
 workflow creates the corresponding GitHub release page.
@@ -26,20 +26,20 @@ commit referenced by the verified signed tag:
 ```starlark
 bazel_dep(
     name = "rules_fips",
-    version = "0.2.0",
+    version = "0.2.1",
 )
 
 git_override(
     module_name = "rules_fips",
     remote = "https://github.com/abilisoft/rules_fips.git",
-    commit = "<full peeled commit ID for v0.2.0>",
+    commit = "<full peeled commit ID for v0.2.1>",
 )
 ```
 
 Resolve and verify the annotated tag before copying its peeled commit ID:
 
 ```console
-git fetch https://github.com/abilisoft/rules_fips.git tag v0.2.0
+git fetch https://github.com/abilisoft/rules_fips.git tag v0.2.1
 git verify-tag FETCH_HEAD
 git rev-parse FETCH_HEAD^{}
 ```
@@ -67,8 +67,8 @@ For each version:
    validation and review.
 
 ```console
-git tag -s v0.2.0 -m "rules_fips v0.2.0"
-git push origin v0.2.0
+git tag -s v0.2.1 -m "rules_fips v0.2.1"
+git push origin v0.2.1
 ```
 
 The release workflow rejects lightweight tags, unverified tag signatures,
