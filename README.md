@@ -14,10 +14,11 @@ that starts with OpenSSL FIPS mode enforced.
 > deployment.
 
 > [!NOTE]
-> The `0.1.0` BCR release is prepared but is not available until its signed tag
-> and registry entry are published. Until then, pin a full GitHub-verified
-> commit. A GitHub release identifies source; it does not change the FIPS claim
-> boundary above.
+> [`v0.1.0`](https://github.com/abilisoft/rules_fips/tree/v0.1.0) is a verified
+> signed GitHub tag but is intentionally not published to BCR yet. Pin its
+> verified commit directly as shown in
+> [Publishing](docs/publishing.md#consume-before-bcr). A signed tag
+> identifies source; it does not change the FIPS claim boundary above.
 
 ## The useful part
 

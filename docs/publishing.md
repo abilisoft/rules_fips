@@ -14,14 +14,36 @@ application or deployment.
 
 ## Current publication state
 
-Version `0.1.0` is prepared for BCR, but registry publication is intentionally
-deferred. The signed GitHub tag and release identify the source archive; they
-do not create a BCR entry. Until an entry exists, consumers must use the full
-verified commit referenced by the signed tag rather than tracking a branch or
-movable tag.
+[`v0.1.0`](https://github.com/abilisoft/rules_fips/tree/v0.1.0) is a verified
+signed GitHub tag whose target commit is
+`564e27bd611356c5d87ac9ce12316c6cffc93fbc`. Registry publication is
+intentionally deferred. The signed tag identifies the source archive; it does
+not create a BCR entry. The **Release** workflow creates the corresponding
+GitHub release page when GitHub Actions is available.
 
 The **Publish to BCR** workflow is manual-only. Creating or pushing a release
 tag cannot dispatch it.
+
+## Consume before BCR
+
+Until a BCR entry exists, declare version `0.1.0` and override it with the full
+verified commit referenced by the signed tag:
+
+```starlark
+bazel_dep(
+    name = "rules_fips",
+    version = "0.1.0",
+)
+
+git_override(
+    module_name = "rules_fips",
+    remote = "https://github.com/abilisoft/rules_fips.git",
+    commit = "564e27bd611356c5d87ac9ce12316c6cffc93fbc",
+)
+```
+
+For a later release, replace both the declared version and commit. Never track
+a branch or movable tag.
 
 ## Bazel Central Registry release
 

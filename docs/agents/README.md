@@ -46,6 +46,10 @@ Fix the disagreement.
 
 ## Public API
 
+Until the module is published to BCR, pin the full verified commit referenced
+by the signed `v0.1.0` tag, following
+[Publishing](../publishing.md#consume-before-bcr). Never track a branch or tag.
+
 ```starlark
 load("@rules_fips//fips:defs.bzl", "fips_elixir_distribution")
 

@@ -2,6 +2,12 @@
 
 Start with the page that matches the question you are trying to answer.
 
+> [!IMPORTANT]
+> [`v0.1.0`](https://github.com/abilisoft/rules_fips/tree/v0.1.0) is a verified
+> signed GitHub tag for direct commit pinning. It is intentionally not
+> published to the Bazel Central Registry. See
+> [Publishing](publishing.md#consume-before-bcr).
+
 | Question | Read |
 | --- | --- |
 | What is built, and where are the trust boundaries? | [Architecture](architecture.md) |
