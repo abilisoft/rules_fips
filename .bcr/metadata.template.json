@@ -1,0 +1,14 @@
+{
+  "homepage": "https://github.com/abilisoft/rules_fips",
+  "maintainers": [
+    {
+      "email": "support@abilisoft.com",
+      "name": "AbiliSoft"
+    }
+  ],
+  "repository": [
+    "github:abilisoft/rules_fips"
+  ],
+  "versions": [],
+  "yanked_versions": {}
+}

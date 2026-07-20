@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 AbiliSoft
+# SPDX-License-Identifier: Apache-2.0
+
+bcr_test_module:
+  module_path: "e2e/bcr"
+  matrix:
+    platform: ["debian13", "debian13_arm64"]
+    bazel: ["9.x"]
+  tasks:
+    consumer_smoke:
+      name: "Resolve the public rules_fips API"
+      platform: ${{ platform }}
+      bazel: ${{ bazel }}
+      build_targets:
+        - "//:smoke"

@@ -22,8 +22,8 @@ FIPS mode, without turning engineering evidence into a compliance claim.
    `rules_foreign_cc`; use Starlark or compiled helpers for project logic.
 5. Do not add vendored binaries, personal identity, machine-local paths, or
    credentials.
-6. Keep exact versions, URLs, SHA-256 values, strip prefixes, manifests, docs,
-   and the module lockfile consistent.
+6. Keep exact versions, URLs, SHA-256 values, strip prefixes, manifests, BCR
+   templates, docs, and module lockfiles consistent.
 7. Treat AMD64 and Arm64 as distinct outputs. A cross-build is not a native
    runtime test.
 8. Never edit `MODULE.bazel.lock` manually.
@@ -107,6 +107,15 @@ source patch.
 
 Cross-check every version, flag, target, linkage statement, and evidence field
 against code. Preserve the claim boundary in [FIPS model](../fips-model.md).
+
+### Release preparation
+
+Follow [Publishing](../publishing.md). Match `MODULE.bazel` to the intended
+signed tag, regenerate lockfiles with Bazel, and build the standalone
+`e2e/bcr` consumer. Treat that consumer as module/API evidence only; it does
+not replace either architecture's distribution build. Never dispatch the
+manual BCR publisher unless the user explicitly authorizes registry
+publication.
 
 ## Completion report
 

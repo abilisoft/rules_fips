@@ -1,0 +1,3 @@
+load(":smoke.bzl", "rules_fips_smoke")
+
+rules_fips_smoke(name = "smoke")

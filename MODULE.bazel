@@ -1,6 +1,6 @@
 module(
     name = "rules_fips",
-    version = "0.0.0",
+    version = "0.1.0",
     bazel_compatibility = [">=9.2.0"],
 )
 

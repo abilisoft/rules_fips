@@ -13,6 +13,12 @@ that starts with OpenSSL FIPS mode enforced.
 > validate, approve, or guarantee the FIPS compliance of an application or
 > deployment.
 
+> [!NOTE]
+> The `0.1.0` BCR release is prepared but is not available until its signed tag
+> and registry entry are published. Until then, pin a full GitHub-verified
+> commit. A GitHub release identifies source; it does not change the FIPS claim
+> boundary above.
+
 ## The useful part
 
 One macro produces two target-specific files:
@@ -172,6 +178,7 @@ Read [Portability and hermeticity](docs/portability.md) before treating
 - [FIPS model and safe language](docs/fips-model.md)
 - [Portability and hermeticity](docs/portability.md)
 - [Version and certificate maintenance](docs/maintenance.md)
+- [Publishing and BCR preparation](docs/publishing.md)
 - [Guide for AI coding agents](docs/agents/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
