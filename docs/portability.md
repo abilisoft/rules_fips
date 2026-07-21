@@ -123,13 +123,17 @@ toolchain separately from the GNU execution Rust toolchain. The selected
 target compiler tree and sysroot are declared inputs to the build-script action,
 while the build script and proc macro remain GNU-executable. The repository's
 consumer matrix inspects that action closure and runs a build script that calls
-both the C compiler and CMake for AMD64 and Arm64. CMake and Ninja are themselves
-checksum-pinned declared tools. A source-built zlib 1.3.2 supplies the only
-non-libc shared library required by the Rust/LLVM execution tools. No host
-compiler, host `libz.so`, or action-time download completes that path. The
-native C compiler needs no per-crate annotation; rules that invoke additional
-native tools such as CMake declare those tools through the normal `rules_rust`
-toolchain interface.
+both the C compiler and CMake for AMD64 and Arm64 after changing into its output
+directory. The adapter passes native tools as execroot-relative inputs;
+`rules_rust` resolves them once before process startup, and the declared static
+tool launcher normalizes execroot-rooted compiler arguments. Native tools and
+their sysroot therefore remain reachable after a build system changes its
+working directory. CMake and Ninja are themselves checksum-pinned declared
+tools. A source-built zlib 1.3.2 supplies the only non-libc shared library
+required by the Rust/LLVM execution tools. No host compiler, host `libz.so`, or
+action-time download completes that path. The native C compiler needs no
+per-crate annotation; rules that invoke additional native tools such as CMake
+declare those tools through the normal `rules_rust` toolchain interface.
 
 The normalized SDK's activation and runtime-launcher execution tools are a
 separate contract again: they compile from the pinned, static Go toolchain for

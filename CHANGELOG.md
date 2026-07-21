@@ -4,6 +4,19 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.2 - 2026-07-21
+
+### Fixed
+
+- `fips_rust_toolchain` binds its default runtime, launcher, and toolchain-type
+  labels to `rules_fips`, so external repositories no longer resolve those
+  defaults in the caller's workspace.
+- Cargo build scripts receive the resolved target C/C++ compiler and archiver
+  as declared execroot-relative tools. `rules_rust` makes those paths absolute
+  before execution, and the static tool launcher normalizes declared
+  execroot-rooted compiler arguments, so direct native builds and CMake remain
+  hermetic after changing directories.
+
 ## 0.3.1 - 2026-07-21
 
 ### Fixed

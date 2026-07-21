@@ -1,8 +1,13 @@
 """Hermetic execution adapter for rules_rust toolchains."""
 
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
 load("//fips/toolchains:runtime_tool.bzl", "hermetic_runtime_tool")
 
 _DEFAULT_RUNTIME_LIBRARIES = Label("@fips_zlib//:libz.so.1")
+_DEFAULT_RUNTIME = Label("//fips/toolchains:execution_glibc")
+_DEFAULT_RUNTIME_LAUNCHER = Label("//fips/toolchains:runtime_launcher")
+_RUST_TOOLCHAIN_TYPE = Label("@rules_rust//rust:toolchain")
+_EXECUTION_ROOT = "/proc/self/cwd/"
 
 _TOOL_FIELDS = {
     "cargo": "cargo",
@@ -23,8 +28,16 @@ def _merge_crate_type_flags(base, configured):
         merged[crate_type] = merged.get(crate_type, []) + flags
     return merged
 
+def _cargo_native_tool_path(path):
+    if path.startswith(_EXECUTION_ROOT):
+        return path.removeprefix(_EXECUTION_ROOT)
+    if path.startswith("/"):
+        fail("Rust native tool path must belong to the declared Bazel execution root: {}".format(path))
+    return path
+
 def _rust_toolchain_adapter_impl(ctx):
     base = ctx.attr.toolchain[platform_common.ToolchainInfo]
+    cc_toolchain = find_cc_toolchain(ctx)
     fields = {}
     for name in dir(base):
         if name not in ["to_json", "to_proto"]:
@@ -55,7 +68,13 @@ def _rust_toolchain_adapter_impl(ctx):
     fields["linker_preference"] = "cc"
     fields["linker_type"] = None
     fields["env"] = dict(base.env)
-    fields["env"]["RULES_RUST_SYMLINK_EXEC_ROOT"] = "1"
+    fields["env"].update({
+        "AR": _cargo_native_tool_path(cc_toolchain.ar_executable),
+        "CC": _cargo_native_tool_path(cc_toolchain.compiler_executable),
+        "CXX": _cargo_native_tool_path(cc_toolchain.compiler_executable),
+        "LD": _cargo_native_tool_path(cc_toolchain.compiler_executable),
+        "RULES_RUST_SYMLINK_EXEC_ROOT": "1",
+    })
     fields["extra_rustc_flags_for_crate_types"] = _merge_crate_type_flags(
         base.extra_rustc_flags_for_crate_types,
         ctx.attr.extra_rustc_flags_for_crate_types,
@@ -83,6 +102,8 @@ rust_toolchain_adapter = rule(
         for attribute in _TOOL_FIELDS.values()
     }),
     doc = "Re-exports a rules_rust toolchain with declared runtime wrappers and executable-only CRT flags.",
+    fragments = ["cpp"],
+    toolchains = use_cc_toolchain(),
 )
 
 def _runtime_wrapper(name, program, data, library_files, runtime, launcher, relative_library_dirs, tags):
@@ -104,8 +125,8 @@ def fips_rust_toolchain(
         tools_repository,
         exec_compatible_with,
         target_compatible_with,
-        runtime = "//fips/toolchains:execution_glibc",
-        launcher = "//fips/toolchains:runtime_launcher",
+        runtime = _DEFAULT_RUNTIME,
+        launcher = _DEFAULT_RUNTIME_LAUNCHER,
         runtime_libraries = _DEFAULT_RUNTIME_LIBRARIES,
         tags = None,
         visibility = None):
@@ -169,7 +190,7 @@ def fips_rust_toolchain(
         exec_compatible_with = exec_compatible_with,
         target_compatible_with = target_compatible_with,
         toolchain = ":" + implementation,
-        toolchain_type = "@rules_rust//rust:toolchain",
+        toolchain_type = _RUST_TOOLCHAIN_TYPE,
         visibility = visibility,
         **common
     )

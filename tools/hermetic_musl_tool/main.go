@@ -13,6 +13,8 @@ import (
 var toolchainRoot string
 var loaderRelativePath string
 
+const executionRootMarker = "/proc/self/cwd/"
+
 var allowedTools = map[string]struct{}{
 	"ar":      {},
 	"clang":   {},
@@ -26,16 +28,15 @@ var allowedTools = map[string]struct{}{
 	"strip":   {},
 }
 
-func absoluteFromExecutionRoot(path string) (string, error) {
+func absoluteFromExecutionRoot(path, root string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("empty embedded toolchain root")
 	}
 	if filepath.IsAbs(path) {
 		return path, nil
 	}
-	root, err := executionRoot()
-	if err != nil {
-		return "", err
+	if root == "" {
+		return "", fmt.Errorf("empty execution root")
 	}
 	return filepath.Join(root, path), nil
 }
@@ -59,25 +60,38 @@ func executionRoot() (string, error) {
 	return root, nil
 }
 
+func resolveExecutionRootMarkers(arguments []string, root string) []string {
+	resolved := make([]string, 0, len(arguments))
+	prefix := filepath.Clean(root) + string(filepath.Separator)
+	for _, argument := range arguments {
+		resolved = append(resolved, strings.ReplaceAll(argument, executionRootMarker, prefix))
+	}
+	return resolved
+}
+
 func run() error {
 	name := filepath.Base(os.Args[0])
 	if _, allowed := allowedTools[name]; !allowed {
 		return fmt.Errorf("unsupported tool name %q", name)
 	}
-	root, err := absoluteFromExecutionRoot(toolchainRoot)
+	execRoot, err := executionRoot()
 	if err != nil {
 		return err
 	}
-	wrapper, err := absoluteFromExecutionRoot(os.Args[0])
+	toolchain, err := absoluteFromExecutionRoot(toolchainRoot, execRoot)
+	if err != nil {
+		return err
+	}
+	wrapper, err := absoluteFromExecutionRoot(os.Args[0], execRoot)
 	if err != nil {
 		return err
 	}
 	if loaderRelativePath == "" {
 		return fmt.Errorf("empty embedded loader path")
 	}
-	loader := filepath.Join(root, filepath.FromSlash(loaderRelativePath))
-	libraries := filepath.Join(root, "lib") + ":" + filepath.Join(root, "usr", "lib")
-	tool := filepath.Join(root, "usr", "bin", name)
+	loader := filepath.Join(toolchain, filepath.FromSlash(loaderRelativePath))
+	libraries := filepath.Join(toolchain, "lib") + ":" + filepath.Join(toolchain, "usr", "lib")
+	tool := filepath.Join(toolchain, "usr", "bin", name)
 	arguments := []string{
 		loader,
 		"--library-path",
@@ -97,7 +111,10 @@ func run() error {
 			filepath.Dir(wrapper),
 		)
 	}
-	arguments = append(arguments, os.Args[1:]...)
+	arguments = append(arguments, resolveExecutionRootMarkers(os.Args[1:], execRoot)...)
+	if err := os.Setenv("RULES_FIPS_EXEC_ROOT", execRoot); err != nil {
+		return fmt.Errorf("publish execution root: %w", err)
+	}
 	if err := syscall.Exec(loader, arguments, os.Environ()); err != nil {
 		return fmt.Errorf("execute %s: %w", tool, err)
 	}

@@ -146,8 +146,10 @@ build scripts and proc macros on the declared GNU execution ABI, makes the
 target C/C++ toolchain tree visible to Cargo's action, and applies Rust's static
 CRT only to executable crates. Its execution closure includes a source-built,
 checksum-pinned zlib; it never searches the worker for `libz.so`, a compiler,
-or a target sysroot. See [Portability](docs/portability.md) for the tested
-AMD64/Arm64 and musl/glibc matrix.
+or a target sysroot. Compiler, archiver, and sysroot paths remain valid when a
+native build changes into a Cargo or CMake output directory. See
+[Portability](docs/portability.md) for the tested AMD64/Arm64 and musl/glibc
+matrix.
 
 ## Hermeticity and portability
 

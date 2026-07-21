@@ -5,6 +5,8 @@ module(
 )
 
 bazel_dep(name = "rules_fips")
+bazel_dep(name = "platforms", version = "1.1.0", dev_dependency = True)
+bazel_dep(name = "rules_rust", version = "0.71.3", dev_dependency = True)
 local_path_override(
     module_name = "rules_fips",
     path = "../..",
