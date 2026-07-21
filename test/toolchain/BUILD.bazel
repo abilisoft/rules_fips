@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_proc_macro")
 load(":run_binary_test.bzl", "run_binary_test")
 
@@ -14,6 +15,11 @@ cc_test(
     srcs = ["main.c"],
 )
 
+cc_test(
+    name = "cxx_test",
+    srcs = ["main.cc"],
+)
+
 rust_proc_macro(
     name = "consumer_macro",
     srcs = ["consumer_macro.rs"],
@@ -22,12 +28,35 @@ rust_proc_macro(
     rustc_flags = ["-Dwarnings"],
 )
 
+cargo_build_script(
+    name = "consumer_build_script",
+    srcs = ["build.rs"],
+    build_script_env = {
+        "CMAKE": "$(CMAKE)",
+        "NINJA": "$(NINJA)",
+    },
+    crate_name = "consumer_build_script",
+    data = [
+        "cmake/CMakeLists.txt",
+        "cmake/native.c",
+        "native.c",
+    ],
+    edition = "2024",
+    rustc_flags = ["-Dwarnings"],
+    toolchains = [
+        "//fips/toolchains:hermetic_cmake",
+        "//fips/toolchains:hermetic_ninja",
+    ],
+    use_default_shell_env = 0,
+)
+
 rust_binary(
     name = "rust_binary",
     srcs = ["main.rs"],
     edition = "2024",
     proc_macro_deps = [":consumer_macro"],
     rustc_flags = ["-Dwarnings"],
+    deps = [":consumer_build_script"],
 )
 
 run_binary_test(

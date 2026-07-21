@@ -11,6 +11,7 @@ import (
 )
 
 var toolchainRoot string
+var loaderRelativePath string
 
 var allowedTools = map[string]struct{}{
 	"ar":      {},
@@ -71,7 +72,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	loader := filepath.Join(root, "lib", "ld-musl-x86_64.so.1")
+	if loaderRelativePath == "" {
+		return fmt.Errorf("empty embedded loader path")
+	}
+	loader := filepath.Join(root, filepath.FromSlash(loaderRelativePath))
 	libraries := filepath.Join(root, "lib") + ":" + filepath.Join(root, "usr", "lib")
 	tool := filepath.Join(root, "usr", "bin", name)
 	arguments := []string{

@@ -10,6 +10,7 @@ FipsCryptoInfo = provider(
         "module_name": "Cryptographic module name documented by the certificate reference.",
         "module_version": "Reported module version or update-stream identity.",
         "runtime_files": "Runtime files required in addition to static archives.",
+        "runtime_entries": "Runtime files paired with normalized SDK-relative destinations.",
         "service_indicator": "How approved-service status is enforced or observed.",
         "static_libs": "Depset of static archives in deterministic link order.",
     },
@@ -37,18 +38,13 @@ FipsCryptoSdkInfo = provider(
 )
 
 MuslSysrootInfo = provider(
-    doc = "An integrity-pinned, static-capable musl libc sysroot.",
+    doc = "The integrity-pinned musl runtime used by declared execution-tool launchers.",
     fields = {
-        "compiler_rt": "Compiler-rt builtins archive installed into the sysroot.",
-        "compiler_rt_license": "LLVM compiler-rt license installed into the sysroot.",
-        "files": "All files belonging to the immutable sysroot.",
+        "files": "All files belonging to the immutable runtime.",
         "license": "musl copyright and license file.",
-        "libc": "musl shared libc used by portable OpenSSL-provider runtimes.",
+        "libc": "musl shared libc used by declared execution tools.",
         "loader": "Architecture-specific musl dynamic loader.",
         "revision": "Pinned upstream musl revision.",
-        "resource_dir": "Clang resource directory containing target compiler-rt objects and headers.",
-        "sysroot_path": "Execution-root-relative root containing headers, CRT objects, and static libraries.",
-        "target_triplet": "musl target triplet represented by the sysroot.",
     },
 )
 
@@ -67,6 +63,15 @@ HermeticBashInfo = provider(
         "binary": "Static launcher executable used at upstream Bash boundaries.",
         "files": "All files required by the launcher and pinned Bash runtime.",
         "version": "Pinned GNU Bash version.",
+    },
+)
+
+HermeticRuntimeEnvironmentInfo = provider(
+    doc = "Additional declared environment required by a hermetic runtime tool.",
+    fields = {
+        "path_lists": "Environment variables mapped to ordered lists of declared execution paths.",
+        "reentry_variables": "Environment variables whose value is the hermetic launcher path.",
+        "variables": "Literal environment variables required by the runtime tool.",
     },
 )
 
@@ -89,35 +94,19 @@ FipsPlatformInfo = provider(
     fields = {
         "arch": "Canonical rules_fips architecture name.",
         "clang_files": "Files belonging to the pinned, architecture-specific Clang tool.",
-        "clang_library_path": "Pinned native library search path required by LLVM executables.",
-        "clang_resource_dir": "Clang resource directory used for native bootstrap compilation.",
-        "clang_runtime_files": "Pinned native shared libraries required by LLVM executables.",
         "go_bin": "Pinned Go executable used to compile hermetic helper tools.",
         "go_files": "Files belonging to the pinned Go release.",
         "libc": "Target C library name.",
-        "llvm_ar": "Pinned LLVM archiver.",
-        "llvm_ld": "Pinned LLVM linker.",
+        "libc_license_file": "License file distributed with the target C runtime.",
+        "libc_runtime_entries": "Runtime files paired with normalized lib/ destinations.",
+        "libc_runtime_files": "Declared target C runtime loader and shared-library closure.",
+        "libc_version": "Target C runtime ABI version.",
         "llvm_nm": "Pinned LLVM symbol inspector.",
-        "llvm_objcopy": "Pinned LLVM object copier.",
-        "llvm_objdump": "Pinned LLVM object inspector.",
         "llvm_ranlib": "Pinned LLVM archive indexer.",
         "llvm_readelf": "Pinned LLVM ELF inspector.",
-        "llvm_strip": "Pinned LLVM binary stripper.",
-        "musl_revision": "Pinned musl upstream revision.",
-        "musl_libc_file": "musl shared libc artifact for OpenSSL-provider bundles.",
-        "musl_license_file": "musl license artifact for distribution notices.",
-        "musl_loader_file": "musl loader artifact for OpenSSL-provider bundles.",
-        "musl_loader_path": "Execution-root-relative musl loader path.",
-        "musl_triplet": "Canonical musl target triplet.",
-        "compiler_rt_path": "Compiler-rt builtins archive inside the musl sysroot.",
-        "compiler_rt_license_path": "Compiler-rt license inside the musl sysroot.",
-        "crt_dir": "Directory containing source-built musl CRT startup objects.",
-        "crt_files": "Source-built musl CRT startup objects required by link actions.",
         "openssl_target": "OpenSSL Configure target.",
-        "qemu_aarch64_file": "Pinned static qemu-aarch64 execution tool.",
-        "qemu_aarch64_files": "Files belonging to the pinned qemu-aarch64 execution tool.",
-        "resource_dir": "Clang resource directory supplied by the target sysroot.",
-        "sysroot_files": "Source-built musl sysroot required by target build actions.",
-        "sysroot_path": "Execution-root-relative path to the source-built musl sysroot.",
+        "qemu_aarch64_file": "Optional pinned static qemu-aarch64 tool for x86-to-ARM cross execution.",
+        "qemu_aarch64_files": "Files belonging to the optional declared qemu-aarch64 execution tool.",
+        "sysroot_files": "Declared target sysroot required by build and validation actions.",
     },
 )

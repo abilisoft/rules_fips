@@ -1,9 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
-load("@rules_foreign_cc//toolchains/native_tools:native_tools_toolchain.bzl", "native_tool_toolchain")
+load("//fips:rust_adapter.bzl", "fips_rust_toolchain")
 load("//fips:sysroot.bzl", "prebuilt_musl_sysroot")
 load(
     "//fips:toolbox.bzl",
     "foreign_perl",
+    "foreign_perl_smoke",
     "foreign_toolbox",
     "foreign_toolbox_executable",
     "foreign_toolbox_posix",
@@ -15,73 +16,462 @@ load(
     "hermetic_musl_toolchain",
     "host_go_tool",
 )
-load(":cc_toolchain.bzl", "fips_cc_toolchain_config", "musl_static_link_smoke")
+load(":cc_toolchain.bzl", "fips_bootlin_cc_toolchain_config", "fips_glibc_cc_toolchain_config")
+load(":compiler_runtime.bzl", "libssp_nonshared")
 load(
     ":defs.bzl",
-    "fips_platform_toolchain",
+    "fips_bootlin_platform_toolchain",
+    "fips_glibc_platform_toolchain",
 )
+load(":runtime_tool.bzl", "hermetic_runtime_tool")
 
 package(default_visibility = ["//visibility:public"])
 
-hermetic_musl_toolchain(
-    name = "llvm_musl",
+libssp_nonshared(
+    name = "compiler_runtime_amd64",
+    ar = ":llvm_musl/bin/ar",
+    clang = ":llvm_musl/bin/clang",
+    target_triple = "x86_64-unknown-linux-gnu",
+    toolchain = ":llvm_musl",
+)
+
+libssp_nonshared(
+    name = "compiler_runtime_arm64_cross",
+    ar = ":llvm_musl/bin/ar",
+    clang = ":llvm_musl/bin/clang",
+    target_triple = "aarch64-unknown-linux-gnu",
+    toolchain = ":llvm_musl",
+)
+
+libssp_nonshared(
+    name = "compiler_runtime_arm64_native",
+    ar = ":llvm_musl_arm64_native/bin/ar",
+    clang = ":llvm_musl_arm64_native/bin/clang",
+    target_triple = "aarch64-unknown-linux-gnu",
+    toolchain = ":llvm_musl_arm64_native",
+)
+
+toolchain(
+    name = "test_execution_amd64_toolchain",
     exec_compatible_with = [
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
+toolchain(
+    name = "test_execution_arm64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__x86_64-unknown-linux-gnu__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__x86_64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__x86_64-unknown-linux-gnu__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__x86_64-unknown-linux-musl__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__aarch64-unknown-linux-gnu__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__aarch64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__aarch64-unknown-linux-gnu__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__aarch64-unknown-linux-musl__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_aarch64__aarch64-unknown-linux-gnu__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_aarch64__aarch64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_aarch64__aarch64-unknown-linux-gnu__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_aarch64__aarch64-unknown-linux-musl__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_aarch64__aarch64-unknown-linux-musl__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_aarch64__aarch64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_aarch64_exec__aarch64-unknown-linux-gnu__stable",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_aarch64_exec__aarch64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_aarch64_exec__aarch64-unknown-linux-gnu__stable_tools",
+)
+
+alias(
+    name = "go_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_go_arm64//sysroot:sysroot",
+        "//conditions:default": "@fips_go_amd64//sysroot:sysroot",
+    }),
+)
+
+alias(
+    name = "cmake_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_cmake_4_4_0_arm64//:bin/cmake",
+        "//conditions:default": "@fips_cmake_4_4_0_amd64//:bin/cmake",
+    }),
+)
+
+alias(
+    name = "cmake_exec_data",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_cmake_4_4_0_arm64//:data",
+        "//conditions:default": "@fips_cmake_4_4_0_amd64//:data",
+    }),
+)
+
+alias(
+    name = "execution_glibc",
+    actual = select({
+        "@platforms//cpu:arm64": ":linux_arm64_glibc_native_impl",
+        "//conditions:default": ":linux_amd64_glibc_impl",
+    }),
+)
+
+alias(
+    name = "ninja_exec",
+    actual = select({
+        "@platforms//cpu:arm64": "@fips_ninja_1_13_2_arm64//:ninja",
+        "//conditions:default": "@fips_ninja_1_13_2_amd64//:ninja",
+    }),
+)
+
+filegroup(
+    name = "empty_exec_support",
+)
+
+alias(
+    name = "qemu_aarch64_exec_support",
+    actual = select({
+        "@platforms//cpu:arm64": ":empty_exec_support",
+        "//conditions:default": "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
+    }),
+)
+
+hermetic_runtime_tool(
+    name = "hermetic_cmake",
+    data = ":cmake_exec_data",
+    launcher = ":runtime_launcher",
+    program = ":cmake_exec",
+    runtime = ":execution_glibc",
+    variable = "CMAKE",
+)
+
+hermetic_runtime_tool(
+    name = "hermetic_ninja",
+    data = ":ninja_exec",
+    launcher = ":runtime_launcher",
+    program = ":ninja_exec",
+    runtime = ":execution_glibc",
+    variable = "NINJA",
+)
+
+hermetic_musl_toolchain(
+    name = "llvm_musl",
+    arch = "amd64",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    go = "@fips_go_amd64//sysroot:sysroot",
     marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     toolchain = "@fips_llvm_musl_amd64//:sysroot",
 )
 
-musl_static_link_smoke(
-    name = "musl_static_link_smoke",
-    clang = ":llvm_musl/bin/clang",
-    clang_tools = ":llvm_musl",
-    ld = ":llvm_musl/bin/ld.lld",
-    sysroot = "@musl_amd64_sysroot//:sysroot",
-    sysroot_marker = "@musl_amd64_sysroot//:usr/include/stdio.h",
+hermetic_musl_toolchain(
+    name = "llvm_musl_arm64_native",
+    arch = "arm64",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    go = "@fips_go_arm64//sysroot:sysroot",
+    marker = "@fips_llvm_musl_arm64//:usr/bin/clang",
+    toolchain = "@fips_llvm_musl_arm64//:sysroot",
 )
 
 filegroup(
     name = "foreign_cc_amd64_files",
     srcs = [
+        ":compiler_runtime_amd64",
+        ":foreign_cc_amd64_config",
         ":llvm_musl",
-        "@musl_amd64_sysroot//:sysroot",
+        "@fips_musl_1_2_5_amd64//:toolchain",
     ],
 )
 
 filegroup(
     name = "foreign_cc_arm64_files",
     srcs = [
+        ":compiler_runtime_arm64_cross",
+        ":foreign_cc_arm64_config",
         ":llvm_musl",
-        "@musl_arm64_sysroot//:sysroot",
+        "@fips_llvm_musl_arm64//:compiler_builtins",
+        "@fips_musl_1_2_5_arm64//:toolchain",
     ],
 )
 
-fips_cc_toolchain_config(
+filegroup(
+    name = "foreign_cc_arm64_native_files",
+    srcs = [
+        ":compiler_runtime_arm64_native",
+        ":foreign_cc_arm64_native_config",
+        ":llvm_musl_arm64_native",
+        "@fips_musl_1_2_5_arm64//:toolchain",
+    ],
+)
+
+filegroup(
+    name = "glibc_cc_amd64_files",
+    srcs = [
+        ":compiler_runtime_amd64",
+        ":glibc_cc_amd64_config",
+        ":llvm_musl",
+        "@fips_glibc_2_35_amd64//:toolchain",
+    ],
+)
+
+filegroup(
+    name = "glibc_cc_arm64_files",
+    srcs = [
+        ":compiler_runtime_arm64_cross",
+        ":glibc_cc_arm64_config",
+        ":llvm_musl",
+        "@fips_glibc_2_35_arm64//:toolchain",
+        "@fips_llvm_musl_arm64//:compiler_builtins",
+    ],
+)
+
+filegroup(
+    name = "glibc_cc_arm64_native_files",
+    srcs = [
+        ":compiler_runtime_arm64_native",
+        ":glibc_cc_arm64_native_config",
+        ":llvm_musl_arm64_native",
+        "@fips_glibc_2_35_arm64//:toolchain",
+    ],
+)
+
+fips_bootlin_cc_toolchain_config(
     name = "foreign_cc_amd64_config",
+    abi_libc_version = "musl-1.2.5",
+    abi_version = "musl",
     ar = ":llvm_musl/bin/ar",
     arch = "x86_64",
     clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_amd64//:compiler_builtins",
+    dynamic_loader = "lib/ld-musl-x86_64.so.1",
+    gcc_version = "14.3.0",
     ld = ":llvm_musl/bin/ld.lld",
+    libc = "musl",
     nm = ":llvm_musl/bin/nm",
     objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_amd64",
     strip = ":llvm_musl/bin/strip",
-    sysroot_marker = "@musl_amd64_sysroot//:usr/include/stdio.h",
-    target_triplet = "x86_64-linux-musl",
+    sysroot_marker = "@fips_musl_1_2_5_amd64//:x86_64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-musl",
 )
 
-fips_cc_toolchain_config(
-    name = "foreign_cc_arm64_config",
+fips_glibc_cc_toolchain_config(
+    name = "glibc_cc_amd64_config",
+    abi_libc_version = "glibc-2.35",
+    abi_version = "gnu",
+    ar = ":llvm_musl/bin/ar",
+    arch = "x86_64",
+    clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_amd64//:compiler_builtins",
+    dynamic_loader = "lib/ld-linux-x86-64.so.2",
+    gcc_version = "11.3.0",
+    ld = ":llvm_musl/bin/ld.lld",
+    libc = "glibc",
+    nm = ":llvm_musl/bin/nm",
+    objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_amd64",
+    strip = ":llvm_musl/bin/strip",
+    sysroot_marker = "@fips_glibc_2_35_amd64//:x86_64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-gnu",
+)
+
+fips_glibc_cc_toolchain_config(
+    name = "glibc_cc_arm64_config",
+    abi_libc_version = "glibc-2.35",
+    abi_version = "gnu",
     ar = ":llvm_musl/bin/ar",
     arch = "aarch64",
     clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_arm64//:compiler_builtins",
+    dynamic_loader = "lib/ld-linux-aarch64.so.1",
+    gcc_version = "11.3.0",
     ld = ":llvm_musl/bin/ld.lld",
+    libc = "glibc",
     nm = ":llvm_musl/bin/nm",
     objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_arm64_cross",
     strip = ":llvm_musl/bin/strip",
-    sysroot_marker = "@musl_arm64_sysroot//:usr/include/stdio.h",
-    target_triplet = "aarch64-linux-musl",
+    sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-gnu",
+)
+
+fips_glibc_cc_toolchain_config(
+    name = "glibc_cc_arm64_native_config",
+    abi_libc_version = "glibc-2.35",
+    abi_version = "gnu",
+    ar = ":llvm_musl_arm64_native/bin/ar",
+    arch = "aarch64",
+    clang = ":llvm_musl_arm64_native/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_arm64//:compiler_builtins",
+    dynamic_loader = "lib/ld-linux-aarch64.so.1",
+    gcc_version = "11.3.0",
+    ld = ":llvm_musl_arm64_native/bin/ld.lld",
+    libc = "glibc",
+    nm = ":llvm_musl_arm64_native/bin/nm",
+    objdump = ":llvm_musl_arm64_native/bin/objdump",
+    resource_marker = "@fips_llvm_musl_arm64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_arm64_native",
+    strip = ":llvm_musl_arm64_native/bin/strip",
+    sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-gnu",
+)
+
+fips_bootlin_cc_toolchain_config(
+    name = "foreign_cc_arm64_config",
+    abi_libc_version = "musl-1.2.5",
+    abi_version = "musl",
+    ar = ":llvm_musl/bin/ar",
+    arch = "aarch64",
+    clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_arm64//:compiler_builtins",
+    dynamic_loader = "lib/ld-musl-aarch64.so.1",
+    gcc_version = "14.3.0",
+    ld = ":llvm_musl/bin/ld.lld",
+    libc = "musl",
+    nm = ":llvm_musl/bin/nm",
+    objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_arm64_cross",
+    strip = ":llvm_musl/bin/strip",
+    sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-musl",
+)
+
+fips_bootlin_cc_toolchain_config(
+    name = "foreign_cc_arm64_native_config",
+    abi_libc_version = "musl-1.2.5",
+    abi_version = "musl",
+    ar = ":llvm_musl_arm64_native/bin/ar",
+    arch = "aarch64",
+    clang = ":llvm_musl_arm64_native/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_arm64//:compiler_builtins",
+    dynamic_loader = "lib/ld-musl-aarch64.so.1",
+    gcc_version = "14.3.0",
+    ld = ":llvm_musl_arm64_native/bin/ld.lld",
+    libc = "musl",
+    nm = ":llvm_musl_arm64_native/bin/nm",
+    objdump = ":llvm_musl_arm64_native/bin/objdump",
+    resource_marker = "@fips_llvm_musl_arm64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_arm64_native",
+    strip = ":llvm_musl_arm64_native/bin/strip",
+    sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-musl",
 )
 
 [
@@ -104,6 +494,54 @@ fips_cc_toolchain_config(
     ]
 ]
 
+cc_toolchain(
+    name = "foreign_cc_arm64_native_impl",
+    all_files = ":foreign_cc_arm64_native_files",
+    ar_files = ":foreign_cc_arm64_native_files",
+    as_files = ":foreign_cc_arm64_native_files",
+    compiler_files = ":foreign_cc_arm64_native_files",
+    dwp_files = ":foreign_cc_arm64_native_files",
+    linker_files = ":foreign_cc_arm64_native_files",
+    objcopy_files = ":foreign_cc_arm64_native_files",
+    strip_files = ":foreign_cc_arm64_native_files",
+    supports_param_files = 1,
+    toolchain_config = ":foreign_cc_arm64_native_config",
+)
+
+cc_toolchain(
+    name = "glibc_cc_arm64_native_impl",
+    all_files = ":glibc_cc_arm64_native_files",
+    ar_files = ":glibc_cc_arm64_native_files",
+    as_files = ":glibc_cc_arm64_native_files",
+    compiler_files = ":glibc_cc_arm64_native_files",
+    dwp_files = ":glibc_cc_arm64_native_files",
+    linker_files = ":glibc_cc_arm64_native_files",
+    objcopy_files = ":glibc_cc_arm64_native_files",
+    strip_files = ":glibc_cc_arm64_native_files",
+    supports_param_files = 1,
+    toolchain_config = ":glibc_cc_arm64_native_config",
+)
+
+[
+    cc_toolchain(
+        name = "glibc_cc_%s_impl" % arch,
+        all_files = ":glibc_cc_%s_files" % arch,
+        ar_files = ":glibc_cc_%s_files" % arch,
+        as_files = ":glibc_cc_%s_files" % arch,
+        compiler_files = ":glibc_cc_%s_files" % arch,
+        dwp_files = ":glibc_cc_%s_files" % arch,
+        linker_files = ":glibc_cc_%s_files" % arch,
+        objcopy_files = ":glibc_cc_%s_files" % arch,
+        strip_files = ":glibc_cc_%s_files" % arch,
+        supports_param_files = 1,
+        toolchain_config = ":glibc_cc_%s_config" % arch,
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
 toolchain(
     name = "foreign_cc_amd64_toolchain",
     exec_compatible_with = [
@@ -111,7 +549,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
-        "//fips/platforms:openssl_fips_musl_amd64",
+        "//fips/platforms:musl",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
@@ -126,7 +564,7 @@ toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
-        "//fips/platforms:openssl_fips_musl_arm64",
+        "//fips/platforms:musl",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
@@ -134,10 +572,97 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
+toolchain(
+    name = "foreign_cc_arm64_native_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":foreign_cc_arm64_native_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_amd64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":glibc_cc_amd64_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_arm64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":glibc_cc_arm64_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_arm64_native_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":glibc_cc_arm64_native_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_amd64_exec_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":glibc_cc_amd64_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_arm64_exec_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":glibc_cc_arm64_native_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
 prebuilt_musl_sysroot(
     name = "musl_amd64",
     arch = "amd64",
-    compiler_rt_license = "@compiler_rt_22_1_3_license//file",
     marker = "@musl_amd64_sysroot//:usr/include/stdio.h",
     musl_license = "@musl_src//:COPYRIGHT",
     sysroot = "@musl_amd64_sysroot//:sysroot",
@@ -146,7 +671,6 @@ prebuilt_musl_sysroot(
 prebuilt_musl_sysroot(
     name = "musl_arm64",
     arch = "arm64",
-    compiler_rt_license = "@compiler_rt_22_1_3_license//file",
     marker = "@musl_arm64_sysroot//:usr/include/stdio.h",
     musl_license = "@musl_src//:COPYRIGHT",
     sysroot = "@musl_arm64_sysroot//:sysroot",
@@ -197,7 +721,7 @@ alias(
         name = "hermetic_make_%s" % arch,
         arch = arch,
         exec_compatible_with = [
-            "@platforms//cpu:x86_64",
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
             "@platforms//os:linux",
         ],
     )
@@ -220,7 +744,7 @@ alias(
         name = "hermetic_bash_%s" % arch,
         arch = arch,
         exec_compatible_with = [
-            "@platforms//cpu:x86_64",
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
             "@platforms//os:linux",
         ],
     )
@@ -243,7 +767,7 @@ alias(
         name = "hermetic_busybox_%s" % arch,
         arch = arch,
         exec_compatible_with = [
-            "@platforms//cpu:x86_64",
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
             "@platforms//os:linux",
         ],
     )
@@ -261,13 +785,54 @@ alias(
     }),
 )
 
-host_go_tool(
+[
+    host_go_tool(
+        name = "hermetic_exec_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+        go = "@fips_go_arm64//sysroot:sysroot" if arch == "arm64" else "@fips_go_amd64//sysroot:sysroot",
+        source = "//tools/hermetic_exec:main.go",
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
     name = "hermetic_exec",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
-    source = "//tools/hermetic_exec:main.go",
+    actual = select({
+        "@platforms//cpu:arm64": ":hermetic_exec_arm64",
+        "//conditions:default": ":hermetic_exec_amd64",
+    }),
+)
+
+[
+    host_go_tool(
+        name = "runtime_launcher_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+        go = "@fips_go_arm64//sysroot:sysroot" if arch == "arm64" else "@fips_go_amd64//sysroot:sysroot",
+        source = "//tools/runtime_launcher:main.go",
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
+    name = "runtime_launcher",
+    actual = select({
+        "@platforms//cpu:arm64": ":runtime_launcher_arm64",
+        "//conditions:default": ":runtime_launcher_amd64",
+    }),
 )
 
 foreign_toolbox(
@@ -300,109 +865,174 @@ foreign_toolbox_smoke(
 
 foreign_perl(
     name = "foreign_perl",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
 )
 
-native_tool_toolchain(
-    name = "foreign_make_impl",
-    env = {"RULES_FIPS_EXEC_ROOT": "$$EXT_BUILD_ROOT$$"},
-    path = "$(execpath :hermetic_make)",
-    target = ":hermetic_make",
+hermetic_runtime_tool(
+    name = "hermetic_perl",
+    data = ":foreign_perl",
+    launcher = ":runtime_launcher",
+    program = ":foreign_perl",
+    runtime = ":execution_glibc",
+    variable = "PERL",
 )
 
-[
-    (
-        filegroup(
-            name = "foreign_%s_stub" % tool,
-            srcs = ["@fips_busybox_exec_amd64//:bin/busybox.static"],
-        ),
-        native_tool_toolchain(
-            name = "foreign_%s_impl" % tool,
-            path = "$(execpath :foreign_%s_stub)" % tool,
-            target = ":foreign_%s_stub" % tool,
-        ),
-    )
-    for tool in [
-        "autoconf",
-        "automake",
-        "m4",
-        "pkgconfig",
-    ]
-]
-
-toolchain(
-    name = "foreign_make_toolchain",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
-    toolchain = ":foreign_make_impl",
-    toolchain_type = "@rules_foreign_cc//toolchains:make_toolchain",
+foreign_perl_smoke(
+    name = "hermetic_perl_smoke",
+    perl = ":hermetic_perl",
 )
 
-[
-    toolchain(
-        name = "foreign_%s_toolchain" % tool,
-        exec_compatible_with = [
-            "@platforms//cpu:x86_64",
-            "@platforms//os:linux",
-        ],
-        toolchain = ":foreign_%s_impl" % tool,
-        toolchain_type = "@rules_foreign_cc//toolchains:%s_toolchain" % tool,
-    )
-    for tool in [
-        "autoconf",
-        "automake",
-        "m4",
-        "pkgconfig",
-    ]
-]
-
-fips_platform_toolchain(
+fips_bootlin_platform_toolchain(
     name = "linux_amd64_impl",
-    ar = ":llvm_musl/bin/ar",
     arch = "amd64",
-    clang = ":llvm_musl/bin/clang",
     clang_tools = ":llvm_musl",
-    clangxx = ":llvm_musl/bin/clang++",
     go = "@fips_go_amd64//sysroot:sysroot",
-    ld = ":llvm_musl/bin/ld.lld",
-    musl = ":musl_amd64",
-    musl_source = "@musl_src//:srcs",
-    musl_source_marker = "@musl_src//:COPYRIGHT",
+    libc = "musl",
+    libc_license = "@musl_src//:COPYRIGHT",
+    libc_version = "1.2.5",
+    loader = "ld-musl-x86_64.so.1",
     nm = ":llvm_musl/bin/nm",
-    objcopy = ":llvm_musl/bin/objcopy",
-    objdump = ":llvm_musl/bin/objdump",
     openssl_target = "linux-x86_64",
     qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
     ranlib = ":llvm_musl/bin/ranlib",
     readelf = ":llvm_musl/bin/readelf",
-    strip = ":llvm_musl/bin/strip",
+    runtime_libraries = [
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_musl_1_2_5_amd64//:toolchain",
+    sysroot_marker = "@fips_musl_1_2_5_amd64//:x86_64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-musl",
 )
 
-fips_platform_toolchain(
+fips_bootlin_platform_toolchain(
     name = "linux_arm64_cross_impl",
-    ar = ":llvm_musl/bin/ar",
     arch = "arm64",
-    clang = ":llvm_musl/bin/clang",
     clang_tools = ":llvm_musl",
-    clangxx = ":llvm_musl/bin/clang++",
     go = "@fips_go_amd64//sysroot:sysroot",
-    ld = ":llvm_musl/bin/ld.lld",
-    musl = ":musl_arm64",
-    musl_source = "@musl_src//:srcs",
-    musl_source_marker = "@musl_src//:COPYRIGHT",
+    libc = "musl",
+    libc_license = "@musl_src//:COPYRIGHT",
+    libc_version = "1.2.5",
+    loader = "ld-musl-aarch64.so.1",
     nm = ":llvm_musl/bin/nm",
-    objcopy = ":llvm_musl/bin/objcopy",
-    objdump = ":llvm_musl/bin/objdump",
     openssl_target = "linux-aarch64",
     qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
     ranlib = ":llvm_musl/bin/ranlib",
     readelf = ":llvm_musl/bin/readelf",
-    strip = ":llvm_musl/bin/strip",
+    runtime_libraries = [
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_musl_1_2_5_arm64//:toolchain",
+    sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-musl",
+)
+
+fips_bootlin_platform_toolchain(
+    name = "linux_arm64_native_impl",
+    arch = "arm64",
+    clang_tools = ":llvm_musl_arm64_native",
+    go = "@fips_go_arm64//sysroot:sysroot",
+    libc = "musl",
+    libc_license = "@musl_src//:COPYRIGHT",
+    libc_version = "1.2.5",
+    loader = "ld-musl-aarch64.so.1",
+    nm = ":llvm_musl_arm64_native/bin/nm",
+    openssl_target = "linux-aarch64",
+    ranlib = ":llvm_musl_arm64_native/bin/ranlib",
+    readelf = ":llvm_musl_arm64_native/bin/readelf",
+    runtime_libraries = [
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_musl_1_2_5_arm64//:toolchain",
+    sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-musl",
+)
+
+fips_glibc_platform_toolchain(
+    name = "linux_amd64_glibc_impl",
+    arch = "amd64",
+    clang_tools = ":llvm_musl",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    libc = "glibc",
+    libc_license = "@glibc_2_35_license//file",
+    libc_version = "2.35",
+    loader = "ld-linux-x86-64.so.2",
+    nm = ":llvm_musl/bin/nm",
+    openssl_target = "linux-x86_64",
+    qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
+    ranlib = ":llvm_musl/bin/ranlib",
+    readelf = ":llvm_musl/bin/readelf",
+    runtime_libraries = [
+        "libc.so.6",
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libresolv.so.2",
+        "librt.so.1",
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_glibc_2_35_amd64//:toolchain",
+    sysroot_marker = "@fips_glibc_2_35_amd64//:x86_64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-gnu",
+)
+
+fips_glibc_platform_toolchain(
+    name = "linux_arm64_glibc_cross_impl",
+    arch = "arm64",
+    clang_tools = ":llvm_musl",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    libc = "glibc",
+    libc_license = "@glibc_2_35_license//file",
+    libc_version = "2.35",
+    loader = "ld-linux-aarch64.so.1",
+    nm = ":llvm_musl/bin/nm",
+    openssl_target = "linux-aarch64",
+    qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
+    ranlib = ":llvm_musl/bin/ranlib",
+    readelf = ":llvm_musl/bin/readelf",
+    runtime_libraries = [
+        "libc.so.6",
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libresolv.so.2",
+        "librt.so.1",
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_glibc_2_35_arm64//:toolchain",
+    sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-gnu",
+)
+
+fips_glibc_platform_toolchain(
+    name = "linux_arm64_glibc_native_impl",
+    arch = "arm64",
+    clang_tools = ":llvm_musl_arm64_native",
+    go = "@fips_go_arm64//sysroot:sysroot",
+    libc = "glibc",
+    libc_license = "@glibc_2_35_license//file",
+    libc_version = "2.35",
+    loader = "ld-linux-aarch64.so.1",
+    nm = ":llvm_musl_arm64_native/bin/nm",
+    openssl_target = "linux-aarch64",
+    ranlib = ":llvm_musl_arm64_native/bin/ranlib",
+    readelf = ":llvm_musl_arm64_native/bin/readelf",
+    runtime_libraries = [
+        "libc.so.6",
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libresolv.so.2",
+        "librt.so.1",
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_glibc_2_35_arm64//:toolchain",
+    sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-gnu",
 )
 
 toolchain(
@@ -432,5 +1062,68 @@ toolchain(
         "@platforms//os:linux",
     ],
     toolchain = ":linux_arm64_cross_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_native_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_native_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_amd64_glibc_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_amd64_glibc_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_glibc_cross_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_glibc_cross_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_glibc_native_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_glibc_native_impl",
     toolchain_type = "//fips:toolchain_type",
 )

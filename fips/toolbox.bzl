@@ -5,10 +5,12 @@ load(
     "ForeignToolboxInfo",
     "HermeticBashInfo",
     "HermeticMakeInfo",
+    "HermeticRuntimeEnvironmentInfo",
     "MuslSysrootInfo",
 )
 
 _PERL_TOOLCHAIN = "@rules_perl//perl:exec_toolchain_type"
+_ELF_VALIDATOR = Label("//fips/private:fips_artifact_validator")
 
 _BUSYBOX_APPLETS = [
     "arch",
@@ -95,6 +97,13 @@ def _hermetic_busybox_impl(ctx):
     go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
     output = ctx.actions.declare_file(ctx.label.name + "/bin/busybox")
     go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    closure_stamp = _validate_elf_closure(
+        ctx,
+        [ctx.file._busybox.path],
+        [ctx.file._busybox.dirname],
+        depset([ctx.file._busybox]),
+        "pinned BusyBox",
+    )
     linker_values = " ".join([
         "-s",
         "-w",
@@ -112,14 +121,15 @@ def _hermetic_busybox_impl(ctx):
         env = {
             "CGO_ENABLED": "0",
             "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOTMPDIR": "/tmp",
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
             "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = go_root.path + "/bin/go",
@@ -132,20 +142,27 @@ def _hermetic_busybox_impl(ctx):
         outputs = [output, go_state],
         progress_message = "Compiling static launcher for pinned BusyBox",
     )
+    runtime_files = depset([output, ctx.file._busybox, closure_stamp])
     return [DefaultInfo(
         executable = output,
-        files = depset([output, ctx.file._busybox]),
+        files = runtime_files,
+        runfiles = ctx.runfiles(transitive_files = runtime_files),
     )]
 
 hermetic_busybox = rule(
     implementation = _hermetic_busybox_impl,
     attrs = {
         "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "_elf_validator": attr.label(
+            cfg = "exec",
+            default = _ELF_VALIDATOR,
+            executable = True,
+        ),
         "_busybox": attr.label(
             allow_single_file = True,
             default = Label("//fips/toolchains:busybox_exec"),
         ),
-        "_go": attr.label(default = Label("@fips_go_amd64//sysroot:sysroot")),
+        "_go": attr.label(cfg = "exec", default = Label("//fips/toolchains:go_exec")),
         "_source": attr.label(
             allow_single_file = [".go"],
             default = Label("//tools/hermetic_busybox:main.go"),
@@ -164,6 +181,17 @@ def _hermetic_bash_impl(ctx):
     bash_root = ctx.file._bash.path.removesuffix(bash_suffix)
     output = ctx.actions.declare_file(ctx.label.name + "/bin/bash")
     go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    closure_inputs = depset(
+        direct = [ctx.file._bash, musl.libc, musl.loader],
+        transitive = [ctx.attr._bash_runtime[DefaultInfo].files],
+    )
+    closure_stamp = _validate_elf_closure(
+        ctx,
+        [ctx.file._bash.path],
+        [bash_root + "/lib", bash_root + "/usr/lib", musl.libc.dirname],
+        closure_inputs,
+        "pinned GNU Bash",
+    )
     linker_values = " ".join([
         "-s",
         "-w",
@@ -183,14 +211,15 @@ def _hermetic_bash_impl(ctx):
         env = {
             "CGO_ENABLED": "0",
             "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOTMPDIR": "/tmp",
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
             "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = go_root.path + "/bin/go",
@@ -207,11 +236,15 @@ def _hermetic_bash_impl(ctx):
         progress_message = "Compiling static launcher for pinned GNU Bash 5.3.9",
     )
     files = depset(
-        direct = [output, musl.libc, musl.loader],
+        direct = [output, musl.libc, musl.loader, closure_stamp],
         transitive = [ctx.attr._bash_runtime[DefaultInfo].files],
     )
     return [
-        DefaultInfo(executable = output, files = files),
+        DefaultInfo(
+            executable = output,
+            files = files,
+            runfiles = ctx.runfiles(transitive_files = files),
+        ),
         HermeticBashInfo(
             binary = output,
             files = files,
@@ -223,12 +256,17 @@ hermetic_bash = rule(
     implementation = _hermetic_bash_impl,
     attrs = {
         "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "_elf_validator": attr.label(
+            cfg = "exec",
+            default = _ELF_VALIDATOR,
+            executable = True,
+        ),
         "_bash": attr.label(
             allow_single_file = True,
             default = Label("//fips/toolchains:bash_exec"),
         ),
         "_bash_runtime": attr.label(default = Label("//fips/toolchains:bash_exec_runtime")),
-        "_go": attr.label(default = Label("@fips_go_amd64//sysroot:sysroot")),
+        "_go": attr.label(cfg = "exec", default = Label("//fips/toolchains:go_exec")),
         "_musl": attr.label(
             default = Label("//fips/toolchains:execution_musl"),
             providers = [MuslSysrootInfo],
@@ -249,11 +287,42 @@ def _single_tree(target, description):
         fail("%s must expose exactly one directory" % description)
     return roots[0], files
 
+def _validate_elf_closure(ctx, programs, library_directories, inputs, description):
+    stamp = ctx.actions.declare_file(ctx.label.name + "/declared_elf_closure.ok")
+    ctx.actions.run(
+        arguments = [
+            "elf-closure",
+            stamp.path,
+            ":".join(library_directories),
+        ] + programs,
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = ctx.executable._elf_validator,
+        execution_requirements = {"block-network": "1"},
+        inputs = inputs,
+        mnemonic = "ExecutionToolClosureCheck",
+        outputs = [stamp],
+        progress_message = "Checking the declared ELF closure for {}".format(description),
+        tools = [ctx.attr._elf_validator[DefaultInfo].files_to_run],
+    )
+    return stamp
+
 def _hermetic_make_impl(ctx):
     go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
     musl = ctx.attr._musl[MuslSysrootInfo]
     output = ctx.actions.declare_file(ctx.label.name + "/bin/make")
     go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    closure_inputs = depset([ctx.file._make, musl.libc, musl.loader])
+    closure_stamp = _validate_elf_closure(
+        ctx,
+        [ctx.file._make.path],
+        [musl.libc.dirname],
+        closure_inputs,
+        "pinned GNU make",
+    )
     linker_values = " ".join([
         "-s",
         "-w",
@@ -273,14 +342,15 @@ def _hermetic_make_impl(ctx):
         env = {
             "CGO_ENABLED": "0",
             "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOTMPDIR": "/tmp",
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
             "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = go_root.path + "/bin/go",
@@ -293,9 +363,13 @@ def _hermetic_make_impl(ctx):
         outputs = [output, go_state],
         progress_message = "Compiling static launcher for pinned GNU make 4.4.1",
     )
-    runtime_files = depset([output, ctx.file._make, musl.libc, musl.loader])
+    runtime_files = depset([output, ctx.file._make, musl.libc, musl.loader, closure_stamp])
     return [
-        DefaultInfo(executable = output, files = runtime_files),
+        DefaultInfo(
+            executable = output,
+            files = runtime_files,
+            runfiles = ctx.runfiles(transitive_files = runtime_files),
+        ),
         HermeticMakeInfo(
             binary = output,
             files = runtime_files,
@@ -307,7 +381,12 @@ hermetic_make = rule(
     implementation = _hermetic_make_impl,
     attrs = {
         "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
-        "_go": attr.label(default = "@fips_go_amd64//sysroot:sysroot"),
+        "_elf_validator": attr.label(
+            cfg = "exec",
+            default = _ELF_VALIDATOR,
+            executable = True,
+        ),
+        "_go": attr.label(cfg = "exec", default = "//fips/toolchains:go_exec"),
         "_make": attr.label(
             allow_single_file = True,
             default = Label("//fips/toolchains:make_exec"),
@@ -326,7 +405,7 @@ hermetic_make = rule(
 )
 
 def _host_go_tool_impl(ctx):
-    go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
+    go_root, go_files = _single_tree(ctx.attr.go, "pinned Go archive")
     output = ctx.actions.declare_file(ctx.label.name)
     go_state = ctx.actions.declare_directory(ctx.label.name + "_go_state")
     ctx.actions.run(
@@ -341,14 +420,15 @@ def _host_go_tool_impl(ctx):
         env = {
             "CGO_ENABLED": "0",
             "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOTMPDIR": "/tmp",
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
-            "GOARCH": "amd64",
+            "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = go_root.path + "/bin/go",
@@ -363,26 +443,49 @@ def _host_go_tool_impl(ctx):
 host_go_tool = rule(
     implementation = _host_go_tool_impl,
     attrs = {
-        "_go": attr.label(default = "@fips_go_amd64//sysroot:sysroot"),
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "go": attr.label(cfg = "exec", mandatory = True),
         "source": attr.label(allow_single_file = [".go"], mandatory = True),
     },
-    doc = "Builds a static amd64 execution tool using the integrity-pinned Go archive.",
+    doc = "Builds a static execution tool using an integrity-pinned Go archive.",
     executable = True,
 )
 
 def _hermetic_musl_toolchain_impl(ctx):
-    go_root, go_files = _single_tree(ctx.attr._go, "pinned Go archive")
+    go_root, go_files = _single_tree(ctx.attr.go, "pinned Go archive")
     marker_suffix = "/usr/bin/clang"
     if not ctx.file.marker.path.endswith(marker_suffix):
         fail("musl toolchain marker must end with %s" % marker_suffix)
     toolchain_root = ctx.file.marker.path.removesuffix(marker_suffix)
     launcher = ctx.outputs.launcher
     go_state = ctx.actions.declare_directory(ctx.label.name + "/go_state")
+    tool_names = [
+        "ar",
+        "clang",
+        "clang++",
+        "ld.lld",
+        "nm",
+        "objcopy",
+        "objdump",
+        "ranlib",
+        "readelf",
+        "strip",
+    ]
+    closure_stamp = _validate_elf_closure(
+        ctx,
+        [toolchain_root + "/usr/bin/" + name for name in tool_names],
+        [toolchain_root + "/lib", toolchain_root + "/usr/lib"],
+        ctx.attr.toolchain[DefaultInfo].files,
+        "pinned LLVM tools",
+    )
     ctx.actions.run(
         arguments = [
             "build",
             "-trimpath",
-            "-ldflags=-s -w -X main.toolchainRoot=" + toolchain_root,
+            "-ldflags=-s -w -X main.toolchainRoot={} -X main.loaderRelativePath={}".format(
+                toolchain_root,
+                "lib/ld-musl-aarch64.so.1" if ctx.attr.arch == "arm64" else "lib/ld-musl-x86_64.so.1",
+            ),
             "-o",
             launcher.path,
             ctx.file._source.path,
@@ -390,14 +493,15 @@ def _hermetic_musl_toolchain_impl(ctx):
         env = {
             "CGO_ENABLED": "0",
             "GOCACHE": "/proc/self/cwd/" + go_state.path + "/cache",
+            "GOTMPDIR": "/tmp",
             "GOENV": "off",
             "GOFLAGS": "-buildvcs=false",
             "GOOS": "linux",
-            "GOARCH": "amd64",
+            "GOARCH": ctx.attr.arch,
             "GOPATH": "/proc/self/cwd/" + go_state.path + "/path",
             "GOTOOLCHAIN": "local",
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = go_root.path + "/bin/go",
@@ -426,7 +530,7 @@ def _hermetic_musl_toolchain_impl(ctx):
             target_file = launcher,
         )
     files = depset(
-        direct = [launcher] + executables,
+        direct = [launcher, closure_stamp] + executables,
         transitive = [ctx.attr.toolchain[DefaultInfo].files],
     )
     return [DefaultInfo(files = files)]
@@ -434,9 +538,15 @@ def _hermetic_musl_toolchain_impl(ctx):
 hermetic_musl_toolchain = rule(
     implementation = _hermetic_musl_toolchain_impl,
     attrs = {
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "_elf_validator": attr.label(
+            cfg = "exec",
+            default = _ELF_VALIDATOR,
+            executable = True,
+        ),
+        "go": attr.label(cfg = "exec", mandatory = True),
         "marker": attr.label(allow_single_file = True, mandatory = True),
         "toolchain": attr.label(mandatory = True),
-        "_go": attr.label(default = "@fips_go_amd64//sysroot:sysroot"),
         "_source": attr.label(
             allow_single_file = [".go"],
             default = "//tools/hermetic_musl_tool:main.go",
@@ -460,7 +570,6 @@ hermetic_musl_toolchain = rule(
 
 def _foreign_toolbox_impl(ctx):
     bash = ctx.attr.bash[HermeticBashInfo]
-    perl = ctx.toolchains[_PERL_TOOLCHAIN].perl_runtime
     make = ctx.attr.make[HermeticMakeInfo]
     applets = {}
     for applet in _BUSYBOX_APPLETS:
@@ -489,7 +598,8 @@ def _foreign_toolbox_impl(ctx):
             bash.files,
             ctx.attr.busybox_launcher[DefaultInfo].files,
             make.files,
-            perl.runtime,
+            ctx.attr.perl[DefaultInfo].files,
+            ctx.attr.perl[DefaultInfo].default_runfiles.files,
         ],
     )
     return [
@@ -501,7 +611,7 @@ def _foreign_toolbox_impl(ctx):
             busybox = ctx.file.busybox,
             files = files,
             make = make_link,
-            perl = perl.interpreter,
+            perl = ctx.executable.perl,
             sh = applets["sh"],
         ),
     ]
@@ -526,9 +636,13 @@ foreign_toolbox = rule(
             default = "//fips/toolchains:hermetic_make",
             providers = [HermeticMakeInfo],
         ),
+        "perl": attr.label(
+            cfg = "exec",
+            default = Label("//fips/toolchains:hermetic_perl"),
+            executable = True,
+        ),
     },
     doc = "Exposes only integrity-pinned shell, coreutils, make, and Perl inputs.",
-    toolchains = [_PERL_TOOLCHAIN],
 )
 
 def _foreign_toolbox_shell_impl(ctx):
@@ -616,14 +730,13 @@ def _foreign_toolbox_smoke_impl(ctx):
     toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
     output = ctx.actions.declare_file(ctx.label.name + ".ok")
     ctx.actions.run(
-        arguments = [
-            "-c",
-            '"$1" "$2"',
-            "toolbox-smoke",
-            toolbox.applets["touch"].path,
-            output.path,
-        ],
-        executable = toolbox.sh,
+        arguments = [output.path],
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+        },
+        executable = toolbox.applets["touch"],
+        execution_requirements = {"block-network": "1"},
         inputs = toolbox.files,
         mnemonic = "ForeignToolboxSmoke",
         outputs = [output],
@@ -650,12 +763,19 @@ def _foreign_perl_impl(ctx):
     runtime_root = runtime.interpreter.path[:-len(interpreter_suffix)]
     runtime_prefix = runtime_root + "/"
     outputs = []
+    relative_paths = []
     executable = None
+    output_root = None
+    perl_version = None
+    perl_arch = None
     for source in runtime.runtime.to_list():
         if not source.path.startswith(runtime_prefix):
             fail("Perl runtime file is outside the relocatable runtime root: %s" % source.path)
         relative_path = source.path[len(runtime_prefix):]
+        relative_paths.append(relative_path)
         output = ctx.actions.declare_file(ctx.label.name + "/" + relative_path)
+        if output_root == None:
+            output_root = output.path[:-len(relative_path)]
         ctx.actions.symlink(
             is_executable = source.path == runtime.interpreter.path,
             output = output,
@@ -664,19 +784,87 @@ def _foreign_perl_impl(ctx):
         outputs.append(output)
         if source.path == runtime.interpreter.path:
             executable = output
+        parts = relative_path.split("/")
+        if len(parts) == 3 and parts[0] == "lib" and parts[2] == "strict.pm":
+            perl_version = parts[1]
+        elif len(parts) == 4 and parts[0] == "lib" and parts[3] == "Config.pm":
+            perl_version = parts[1]
+            perl_arch = parts[2]
     if executable == None:
         fail("Perl runtime did not contain its interpreter")
+    if perl_version == None or perl_arch == None:
+        fail("Perl runtime did not expose strict.pm and its architecture-specific Config.pm")
+    reentry_module = ctx.actions.declare_file(ctx.label.name + "/lib/rules_fips/" + ctx.file._reentry_module.basename)
+    ctx.actions.symlink(
+        output = reentry_module,
+        target_file = ctx.file._reentry_module,
+    )
+    outputs.append(reentry_module)
+    site_perl_prefix = "lib/site_perl/{}/".format(perl_version)
+    has_site_perl = False
+    for relative_path in relative_paths:
+        if relative_path.startswith(site_perl_prefix):
+            has_site_perl = True
+    include_paths = [reentry_module.dirname]
+    if has_site_perl:
+        include_paths.append(output_root + site_perl_prefix[:-1])
+    include_paths.append(output_root + "lib/{}".format(perl_version))
     return [
         DefaultInfo(
             executable = executable,
             files = depset(outputs),
             runfiles = ctx.runfiles(files = outputs),
         ),
+        HermeticRuntimeEnvironmentInfo(
+            path_lists = {"PERL5LIB": include_paths},
+            reentry_variables = ["RULES_FIPS_HERMETIC_PERL"],
+            variables = {"PERL5OPT": "-MRulesFipsHermeticPerl"},
+        ),
     ]
 
 foreign_perl = rule(
     implementation = _foreign_perl_impl,
-    doc = "Exposes the registered relocatable Perl as a rules_foreign_cc build tool.",
+    attrs = {
+        "_reentry_module": attr.label(
+            allow_single_file = True,
+            default = Label("//tools/perl_runtime:RulesFipsHermeticPerl.pm"),
+        ),
+    },
+    doc = "Exposes the registered relocatable Perl as a declared build tool.",
     executable = True,
     toolchains = [_PERL_TOOLCHAIN],
+)
+
+def _foreign_perl_smoke_impl(ctx):
+    output = ctx.actions.declare_file(ctx.label.name + ".ok")
+    arguments = ctx.actions.args()
+    arguments.add_all([
+        "-Mstrict",
+        "-MConfig",
+        "-e",
+        "system($^X, '-Mstrict', '-MConfig', '-e', 'exit 0') == 0 or die $?; " +
+        "open(my $result, '>', $ARGV[0]) or die $!; print {$result} $Config{version}; close($result) or die $!;",
+        output.path,
+    ])
+    ctx.actions.run(
+        arguments = [arguments],
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+        },
+        executable = ctx.executable.perl,
+        execution_requirements = {"block-network": "1"},
+        mnemonic = "ForeignPerlSmoke",
+        outputs = [output],
+        progress_message = "Checking the pinned hermetic Perl runtime",
+        tools = [ctx.attr.perl[DefaultInfo].files_to_run],
+    )
+    return [DefaultInfo(files = depset([output]))]
+
+foreign_perl_smoke = rule(
+    implementation = _foreign_perl_smoke_impl,
+    attrs = {
+        "perl": attr.label(cfg = "exec", executable = True, mandatory = True),
+    },
+    doc = "Checks that the pinned Perl core libraries load through the declared GNU runtime.",
 )

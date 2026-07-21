@@ -1,6 +1,5 @@
 common --enable_bzlmod
 common --lockfile_mode=error
-common --repo_contents_cache=
 common --noexperimental_collect_system_network_usage
 common --remote_cache=grpcs://abilisoft.buildbuddy.io
 common --remote_executor=grpcs://abilisoft.buildbuddy.io
@@ -15,6 +14,7 @@ common:local --bes_backend=
 common:local --bes_results_url=
 
 build --incompatible_strict_action_env
+build --sandbox_default_allow_network=false
 
 # GitHub Actions supplies BuildBuddy authentication from its encrypted secret.
 # Local authentication belongs in ~/.bazelrc or the ignored user.bazelrc.
@@ -22,7 +22,9 @@ build --bes_results_url=https://abilisoft.buildbuddy.io/invocation/
 build --bes_backend=grpcs://abilisoft.buildbuddy.io
 
 build:linux_amd64 --platforms=//fips/platforms:linux_amd64
+build:linux_amd64_glibc --platforms=//fips/platforms:linux_amd64_glibc
 build:linux_arm64 --platforms=//fips/platforms:linux_arm64
+build:linux_arm64_glibc --platforms=//fips/platforms:linux_arm64_glibc
 
 # FIPS build actions are intentionally verbose so the exact configure flags
 # remain available in CI logs and provenance records.

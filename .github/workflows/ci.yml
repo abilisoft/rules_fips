@@ -59,6 +59,16 @@ jobs:
           --platforms=@rules_fips//fips/platforms:linux_amd64
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //:external_sdk
+      - name: Build exported SDK execution helpers on GNU Linux
+        working-directory: e2e/bcr
+        run: >-
+          bazel build
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=@rules_fips//fips/platforms:linux_amd64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //:external_sdk_activation_exec
+          //:external_sdk_runtime_launcher_exec
+          @rules_fips//fips/toolchains:hermetic_perl_smoke
       - name: Analyze the exported Arm64 SDK from an external module
         working-directory: e2e/bcr
         run: >-
@@ -75,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux_amd64, linux_arm64]
+        platform: [linux_amd64, linux_amd64_glibc, linux_arm64, linux_arm64_glibc]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -101,7 +111,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux_amd64, linux_arm64]
+        platform: [linux_amd64, linux_amd64_glibc, linux_arm64, linux_arm64_glibc]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -112,15 +122,62 @@ jobs:
           bazelisk-cache: true
           disk-cache: true
           repository-cache: true
+      - name: Audit target-native build-script inputs
+        run: |
+          bazel aquery \
+            ${BAZEL_REMOTE_FALLBACK} \
+            --config=${{ matrix.platform }} \
+            --extra_execution_platforms=//fips/platforms:linux_execution_amd64 \
+            --output=textproto \
+            --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}" \
+            //test/toolchain:consumer_build_script > "${RUNNER_TEMP}/build-script-actions.textproto"
+          if grep -E 'arguments: "/usr/bin/(cc|c\\+\\+|gcc|g\\+\\+|clang|clang\\+\\+)"' "${RUNNER_TEMP}/build-script-actions.textproto"; then
+            echo "undeclared host compiler found in Cargo build-script actions" >&2
+            exit 1
+          fi
+          grep -Eq 'fips_llvm_musl_(amd64|arm64)' "${RUNNER_TEMP}/build-script-actions.textproto"
+          grep -Eq 'fips_(musl_1_2_5|glibc_2_35)_(amd64|arm64)' "${RUNNER_TEMP}/build-script-actions.textproto"
       - name: Link and execute strict C and Rust consumers
         run: >-
           bazel test
           ${BAZEL_REMOTE_FALLBACK}
           --config=${{ matrix.platform }}
-          --extra_execution_platforms=//fips/platforms:${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_amd64
+          ${{ contains(matrix.platform, 'arm64') && '--run_under=@fips_qemu_aarch64//:usr/bin/qemu-aarch64' || '' }}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //test/toolchain:cc_binary_test
           //test/toolchain:cc_test
+          //test/toolchain:cxx_test
+          //test/toolchain:rust_binary_test
+
+  native-arm64-consumers:
+    name: Toolchain consumers (native Arm64, ${{ matrix.platform }})
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux_arm64, linux_arm64_glibc]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+          disk-cache: true
+          repository-cache: true
+      - name: Link and execute strict C and Rust consumers natively
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --config=${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_arm64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/toolchain:cc_binary_test
+          //test/toolchain:cc_test
+          //test/toolchain:cxx_test
           //test/toolchain:rust_binary_test
 
   distributions:
@@ -130,7 +187,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux_amd64, linux_arm64]
+        platform: [linux_amd64, linux_amd64_glibc, linux_arm64, linux_arm64_glibc]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
