@@ -229,7 +229,7 @@
   "moduleExtensions": {
     "//fips:extensions.bzl%fips_sources": {
       "general": {
-        "bzlTransitiveDigest": "lZtRsyQO2hKot3NgBPaMuc0eHGWGWOMAg+F0lzDMLjI=",
+        "bzlTransitiveDigest": "bnsvf5bkeUVkhQd1vqbSGr7pORLqSB79ED8LFylt3EI=",
         "usagesDigest": "5bpg4nIMkVClbovHXPs7TgMkhDd99IYmGfsa+xauQuU=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -284,6 +284,7 @@
               "strip_prefix": "zlib-1.3.2",
               "archive_type": "",
               "urls": [
+                "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz",
                 "https://zlib.net/zlib-1.3.2.tar.gz"
               ],
               "version": "1.3.2"

@@ -40,6 +40,8 @@ Bazel Central Registry.
   execution platform without resolving a FIPS target toolchain there.
 - Compiler, libc, CMake, Ninja, Go, Rust, QEMU, and Bazel pins were refreshed to
   the versions documented in `docs/versions.md`.
+- The source-built zlib input has two official, byte-identical HTTPS locations
+  guarded by the same SHA-256, avoiding a single upstream availability point.
 - Rust execution tools, proc macros, and Cargo build scripts now remain on an
   ABI-neutral GNU execution toolchain while selecting musl/glibc application
   C/C++ inputs independently.
