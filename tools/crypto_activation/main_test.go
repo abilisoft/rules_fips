@@ -11,7 +11,7 @@ import (
 
 func TestPrepareRequiresDeclaredSDKAndSanitizesEnvironment(t *testing.T) {
 	root := t.TempDir()
-	for _, relative := range []string{"lib/ld-musl.so.1", "bin/openssl"} {
+	for _, relative := range []string{"lib/ld-runtime.so.1", "bin/openssl"} {
 		path := filepath.Join(root, relative)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -28,6 +28,8 @@ func TestPrepareRequiresDeclaredSDKAndSanitizesEnvironment(t *testing.T) {
 			"OPENSSL_CONF=/host/openssl.cnf",
 			"OPENSSL_MODULES=/host/modules",
 			"FIPS_MODULE_CONF=/host/fipsmodule.cnf",
+			"LD_AUDIT=/host/audit.so",
+			"LD_DEBUG=all",
 			"LD_LIBRARY_PATH=/host/lib",
 			"LD_PRELOAD=/host/preload.so",
 		},
@@ -36,7 +38,7 @@ func TestPrepareRequiresDeclaredSDKAndSanitizesEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	loader := filepath.Join(root, "lib", "ld-musl.so.1")
+	loader := filepath.Join(root, "lib", "ld-runtime.so.1")
 	if prepared.executable != loader {
 		t.Fatalf("executable = %q, want %q", prepared.executable, loader)
 	}
@@ -47,7 +49,7 @@ func TestPrepareRequiresDeclaredSDKAndSanitizesEnvironment(t *testing.T) {
 		t.Fatalf("environment did not replace OPENSSL_MODULES: %v", prepared.environment)
 	}
 	for _, entry := range prepared.environment {
-		for _, forbidden := range []string{"FIPS_MODULE_CONF=", "LD_LIBRARY_PATH=", "LD_PRELOAD=", "/host/"} {
+		for _, forbidden := range []string{"FIPS_MODULE_CONF=", "LD_", "/host/"} {
 			if strings.HasPrefix(entry, forbidden) || strings.Contains(entry, forbidden) {
 				t.Fatalf("environment retained forbidden value %q: %v", forbidden, prepared.environment)
 			}
@@ -85,7 +87,7 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 	releaseRoot := t.TempDir()
 	sdkRoot := filepath.Join(releaseRoot, ".rules_elixir_mix", "crypto_sdk")
 	for _, relative := range []string{
-		"lib/ld-musl.so.1",
+		"lib/ld-runtime.so.1",
 		"bin/openssl",
 		"lib/ossl-modules/fips.so",
 	} {
@@ -155,19 +157,20 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 		[]string{
 			"RULES_ELIXIR_MIX_CRYPTO_STATE=" + state,
 			"OPENSSL_CONF=/host/openssl.cnf",
+			"LD_AUDIT=/host/audit.so",
 			"LD_LIBRARY_PATH=/host/lib",
 		},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if activation.executable != filepath.Join(sdkRoot, "lib", "ld-musl.so.1") {
+	if activation.executable != filepath.Join(sdkRoot, "lib", "ld-runtime.so.1") {
 		t.Fatalf("activation executable = %q", activation.executable)
 	}
 	if !slices.Contains(activation.arguments, filepath.Join(state, "fipsmodule.cnf")) {
 		t.Fatalf("activation arguments did not expand state: %v", activation.arguments)
 	}
-	if runtime.executable != filepath.Join(sdkRoot, "lib", "ld-musl.so.1") {
+	if runtime.executable != filepath.Join(sdkRoot, "lib", "ld-runtime.so.1") {
 		t.Fatalf("runtime executable = %q", runtime.executable)
 	}
 	if !slices.Contains(runtime.arguments, program) {
@@ -209,7 +212,7 @@ func TestPreparePackagedLaunchRejectsWritableCopyOutsideState(t *testing.T) {
 			Destination: "{release_root}/escape",
 		}},
 	}
-	for _, relative := range []string{"sdk/lib/ld-musl.so.1", "sdk/bin/openssl", "program", "source"} {
+	for _, relative := range []string{"sdk/lib/ld-runtime.so.1", "sdk/bin/openssl", "program", "source"} {
 		path := filepath.Join(releaseRoot, relative)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)

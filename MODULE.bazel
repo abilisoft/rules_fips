@@ -1,6 +1,6 @@
 module(
     name = "rules_fips",
-    version = "0.2.1",
+    version = "0.3.0",
     bazel_compatibility = [">=9.2.0"],
 )
 
@@ -8,13 +8,156 @@ bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.3", dev_dependency = Tr
 
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.22")
-bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 bazel_dep(name = "rules_perl", version = "1.1.2")
+
+bazel_dep(name = "rules_rust", version = "0.71.3", dev_dependency = True)
+
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 
-http_archive = use_repo_rule(
-    "@bazel_tools//tools/build_defs/repo:http.bzl",
-    "http_archive",
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust", dev_dependency = True)
+
+_RUST_LINUX_X86_64_SHA256S = {
+    "cargo-1.97.1-x86_64-unknown-linux-gnu.tar.xz": "e1be5f5ff7f7f80ca506fb65770b759edbdc6d303781ed71c5de8ec8a8394779",
+    "clippy-1.97.1-x86_64-unknown-linux-gnu.tar.xz": "3441df8fb54db985f8c8a3e8356b8874a3f92cc8cca8565cfe36f1dc15935e72",
+    "llvm-tools-1.97.1-x86_64-unknown-linux-gnu.tar.xz": "3e7a1c596a42dea6bf625ec6f006ce2fbcf5d1ff892f082828eb182a5d483b95",
+    "rust-std-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "46aed8e63186350004d8ec6afca798811e6530b514352e5a8a26f3dc4939b3be",
+    "rust-std-1.97.1-aarch64-unknown-linux-musl.tar.xz": "49ff0879d94e2e8e86d5e85eb15a9215943e8c78b51363d6553443598cab5d31",
+    "rust-std-1.97.1-x86_64-unknown-linux-gnu.tar.xz": "1c1e704ae80126b7de34f72ea2825f7fd01736dec20732faed47374b95282fba",
+    "rust-std-1.97.1-x86_64-unknown-linux-musl.tar.xz": "51d83178680556f73a5fa8ad865b76a1ff541867445c00fc65dc67246bc2de66",
+    "rustc-1.97.1-x86_64-unknown-linux-gnu.tar.xz": "9819d0a32d56bd339585319c80260e332779f5541fd66838ab7e016d6c814819",
+}
+
+_RUST_LINUX_AARCH64_SHA256S = {
+    "cargo-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "8f70bcaccea5ba4db187c3fd4d64e24592b4e16af513497201f5909d61691dbe",
+    "clippy-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "d8bac7b0ba5ca9bb868ccb9e367a1d52f4837f3ebf4892eaf64cda37ce362bb5",
+    "llvm-tools-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "1c471f218346d37bdccadb1a9d37383d448cdaf00bf2a7cb1072c0970eb48b40",
+    "rust-std-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "46aed8e63186350004d8ec6afca798811e6530b514352e5a8a26f3dc4939b3be",
+    "rust-std-1.97.1-aarch64-unknown-linux-musl.tar.xz": "49ff0879d94e2e8e86d5e85eb15a9215943e8c78b51363d6553443598cab5d31",
+    "rustc-1.97.1-aarch64-unknown-linux-gnu.tar.xz": "b344b81f0cd4c2246c7da8b197fe7a339d7dd02bb15cb69b2524115d9c75224c",
+}
+
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    edition = "2024",
+    exec_triple = "x86_64-unknown-linux-gnu",
+    sha256s = _RUST_LINUX_X86_64_SHA256S,
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "x86_64-unknown-linux-gnu",
+    versions = ["1.97.1"],
+)
+rust.repository_set(
+    name = "rust_linux_x86_64_exec",
+    edition = "2024",
+    exec_triple = "x86_64-unknown-linux-gnu",
+    sha256s = _RUST_LINUX_X86_64_SHA256S,
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "x86_64-unknown-linux-gnu",
+    versions = ["1.97.1"],
+)
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-gnu",
+)
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "x86_64-unknown-linux-musl",
+)
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-musl",
+)
+rust.repository_set(
+    name = "rust_linux_aarch64",
+    edition = "2024",
+    exec_triple = "aarch64-unknown-linux-gnu",
+    sha256s = _RUST_LINUX_AARCH64_SHA256S,
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-gnu",
+    versions = ["1.97.1"],
+)
+rust.repository_set(
+    name = "rust_linux_aarch64_exec",
+    edition = "2024",
+    exec_triple = "aarch64-unknown-linux-gnu",
+    sha256s = _RUST_LINUX_AARCH64_SHA256S,
+    target_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-gnu",
+    versions = ["1.97.1"],
+)
+rust.repository_set(
+    name = "rust_linux_aarch64",
+    target_compatible_with = [
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-musl",
+)
+use_repo(
+    rust,
+    "rust_linux_aarch64__aarch64-unknown-linux-gnu__stable_tools",
+    "rust_linux_aarch64__aarch64-unknown-linux-musl__stable_tools",
+    "rust_linux_aarch64_exec__aarch64-unknown-linux-gnu__stable_tools",
+    "rust_linux_x86_64__aarch64-unknown-linux-gnu__stable_tools",
+    "rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools",
+    "rust_linux_x86_64__x86_64-unknown-linux-gnu__stable_tools",
+    "rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools",
+    "rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable_tools",
+)
+
+register_toolchains(
+    "//fips/toolchains:rust_linux_aarch64__aarch64-unknown-linux-gnu__stable",
+    "//fips/toolchains:rust_linux_aarch64__aarch64-unknown-linux-musl__stable",
+    "//fips/toolchains:rust_linux_x86_64__aarch64-unknown-linux-gnu__stable",
+    "//fips/toolchains:rust_linux_x86_64__aarch64-unknown-linux-musl__stable",
+    "//fips/toolchains:rust_linux_x86_64__x86_64-unknown-linux-gnu__stable",
+    "//fips/toolchains:rust_linux_x86_64__x86_64-unknown-linux-musl__stable",
+    "//fips/toolchains:rust_linux_aarch64_exec__aarch64-unknown-linux-gnu__stable",
+    "//fips/toolchains:rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable",
+    dev_dependency = True,
+)
+
+register_toolchains(
+    "//fips/toolchains:test_execution_amd64_toolchain",
+    "//fips/toolchains:test_execution_arm64_toolchain",
+    dev_dependency = True,
+)
+
+verified_archive = use_repo_rule(
+    "//fips:repositories.bzl",
+    "verified_archive",
 )
 
 http_file = use_repo_rule(
@@ -22,7 +165,7 @@ http_file = use_repo_rule(
     "http_file",
 )
 
-http_archive(
+verified_archive(
     name = "fips_busybox_exec_amd64",
     build_file = "//fips/private:busybox.BUILD.bazel",
     sha256 = "b0d6cfc585d7fdd12df359cc5d38d5e45894e9e9e78c4059eb41577d022ec734",
@@ -30,7 +173,191 @@ http_archive(
     urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/busybox-static-1.37.0-r31.apk"],
 )
 
-http_archive(
+verified_archive(
+    name = "fips_cmake_4_4_0_amd64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+filegroup(name = "data", srcs = glob(["**"], exclude = ["BUILD.bazel"]))
+exports_files(["bin/cmake"])
+""",
+    sha256 = "3864eb649b4466ae126a64bbde1657adad78efbbaa068bf38201de5cf1b5349f",
+    strip_prefix = "cmake-4.4.0-linux-x86_64",
+    type = "tar.gz",
+    urls = ["https://github.com/Kitware/CMake/releases/download/v4.4.0/cmake-4.4.0-linux-x86_64.tar.gz"],
+)
+
+verified_archive(
+    name = "fips_cmake_4_4_0_arm64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+filegroup(name = "data", srcs = glob(["**"], exclude = ["BUILD.bazel"]))
+exports_files(["bin/cmake"])
+""",
+    sha256 = "e98bb53e0b00a8f672424517d34c05bb9b94fd1c888c89e0b81bc8df51d1a94b",
+    strip_prefix = "cmake-4.4.0-linux-aarch64",
+    type = "tar.gz",
+    urls = ["https://github.com/Kitware/CMake/releases/download/v4.4.0/cmake-4.4.0-linux-aarch64.tar.gz"],
+)
+
+verified_archive(
+    name = "fips_ninja_1_13_2_amd64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["ninja"])
+""",
+    sha256 = "5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6",
+    type = "zip",
+    urls = ["https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip"],
+)
+
+verified_archive(
+    name = "fips_ninja_1_13_2_arm64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+exports_files(["ninja"])
+""",
+    sha256 = "fd2cacc8050a7f12a16a2e48f9e06fca5c14fc4c2bee2babb67b58be17a607fc",
+    type = "zip",
+    urls = ["https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux-aarch64.zip"],
+)
+
+verified_archive(
+    name = "fips_glibc_2_35_amd64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "toolchain",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+exports_files([
+    "x86_64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+])
+""",
+    remove_paths = [
+        "x86_64-buildroot-linux-gnu/sysroot/dev",
+        "x86_64-buildroot-linux-gnu/sysroot/etc",
+        "x86_64-buildroot-linux-gnu/sysroot/proc",
+        "x86_64-buildroot-linux-gnu/sysroot/run",
+        "x86_64-buildroot-linux-gnu/sysroot/sys",
+        "x86_64-buildroot-linux-gnu/sysroot/tmp",
+        "x86_64-buildroot-linux-gnu/sysroot/var",
+    ],
+    retain_paths = [
+        "lib/gcc/x86_64-buildroot-linux-gnu/11.3.0",
+        "x86_64-buildroot-linux-gnu/include/c++/11.3.0",
+        "x86_64-buildroot-linux-gnu/sysroot",
+    ],
+    sha256 = "861c1e8ad0a66e4c28e7a1f8319d68080ab0ff8d16a765e65540f1957203a190",
+    strip_prefix = "x86-64--glibc--stable-2022.08-1",
+    type = "tar.bz2",
+    urls = ["https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--stable-2022.08-1.tar.bz2"],
+)
+
+verified_archive(
+    name = "fips_glibc_2_35_arm64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "toolchain",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+exports_files([
+    "aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+])
+""",
+    remove_paths = [
+        "aarch64-buildroot-linux-gnu/sysroot/dev",
+        "aarch64-buildroot-linux-gnu/sysroot/etc",
+        "aarch64-buildroot-linux-gnu/sysroot/proc",
+        "aarch64-buildroot-linux-gnu/sysroot/run",
+        "aarch64-buildroot-linux-gnu/sysroot/sys",
+        "aarch64-buildroot-linux-gnu/sysroot/tmp",
+        "aarch64-buildroot-linux-gnu/sysroot/var",
+    ],
+    retain_paths = [
+        "aarch64-buildroot-linux-gnu/include/c++/11.3.0",
+        "aarch64-buildroot-linux-gnu/sysroot",
+        "lib/gcc/aarch64-buildroot-linux-gnu/11.3.0",
+    ],
+    sha256 = "844df3c99508030ee9cb1152cb182500bb9816ff01968f2e18591d51d766c9e7",
+    strip_prefix = "aarch64--glibc--stable-2022.08-1",
+    type = "tar.bz2",
+    urls = ["https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--glibc--stable-2022.08-1.tar.bz2"],
+)
+
+verified_archive(
+    name = "fips_musl_1_2_5_amd64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "toolchain",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+exports_files([
+    "x86_64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+])
+""",
+    remove_paths = [
+        "x86_64-buildroot-linux-musl/sysroot/dev",
+        "x86_64-buildroot-linux-musl/sysroot/etc",
+        "x86_64-buildroot-linux-musl/sysroot/proc",
+        "x86_64-buildroot-linux-musl/sysroot/run",
+        "x86_64-buildroot-linux-musl/sysroot/sys",
+        "x86_64-buildroot-linux-musl/sysroot/tmp",
+        "x86_64-buildroot-linux-musl/sysroot/var",
+    ],
+    retain_paths = [
+        "lib/gcc/x86_64-buildroot-linux-musl/14.3.0",
+        "x86_64-buildroot-linux-musl/include/c++/14.3.0",
+        "x86_64-buildroot-linux-musl/sysroot",
+    ],
+    sha256 = "09fca3aa89540f1b01b5f4210d488cbeb00f522044c53e9989b1dd8a38076912",
+    strip_prefix = "x86-64--musl--stable-2025.08-1",
+    type = "tar.xz",
+    urls = ["https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--musl--stable-2025.08-1.tar.xz"],
+)
+
+verified_archive(
+    name = "fips_musl_1_2_5_arm64",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "toolchain",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+exports_files([
+    "aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+])
+""",
+    remove_paths = [
+        "aarch64-buildroot-linux-musl/sysroot/dev",
+        "aarch64-buildroot-linux-musl/sysroot/etc",
+        "aarch64-buildroot-linux-musl/sysroot/proc",
+        "aarch64-buildroot-linux-musl/sysroot/run",
+        "aarch64-buildroot-linux-musl/sysroot/sys",
+        "aarch64-buildroot-linux-musl/sysroot/tmp",
+        "aarch64-buildroot-linux-musl/sysroot/var",
+    ],
+    retain_paths = [
+        "aarch64-buildroot-linux-musl/include/c++/14.3.0",
+        "aarch64-buildroot-linux-musl/sysroot",
+        "lib/gcc/aarch64-buildroot-linux-musl/14.3.0",
+    ],
+    sha256 = "defba831ffa1175236f137069333e21ed46d4d19feb5080a90cf248b6fc2cb08",
+    strip_prefix = "aarch64--musl--stable-2025.08-1",
+    type = "tar.xz",
+    urls = ["https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2025.08-1.tar.xz"],
+)
+
+verified_archive(
     name = "fips_busybox_exec_arm64",
     build_file = "//fips/private:busybox.BUILD.bazel",
     sha256 = "965777e06b94bf11981d5f4ecdfcd577879f4b0dda544294d1dd3f72b217bc75",
@@ -38,7 +365,7 @@ http_archive(
     urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/aarch64/busybox-static-1.37.0-r31.apk"],
 )
 
-http_archive(
+verified_archive(
     name = "fips_make_exec_amd64",
     build_file = "//fips/private:make.BUILD.bazel",
     sha256 = "a916626a876f64c6b6fb32a6bf0fa93351d09fae0aa7684135642390da647e60",
@@ -46,7 +373,7 @@ http_archive(
     urls = ["https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/make-4.4.1-r4.apk"],
 )
 
-http_archive(
+verified_archive(
     name = "fips_make_exec_arm64",
     build_file = "//fips/private:make.BUILD.bazel",
     sha256 = "0a2c6c3fa0d90b652bbaeac362d1bfe54b75aae57631a6b448826f8b51c85170",
@@ -55,29 +382,31 @@ http_archive(
 )
 
 http_file(
-    name = "compiler_rt_22_1_3_license",
-    downloaded_file_path = "compiler-rt-22.1.3-LICENSE.txt",
-    sha256 = "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
-    urls = ["https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-22.1.3/compiler-rt/LICENSE.TXT"],
+    name = "glibc_2_35_license",
+    downloaded_file_path = "glibc-2.35-COPYING.LIB",
+    sha256 = "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+    urls = ["https://raw.githubusercontent.com/bminor/glibc/glibc-2.35/COPYING.LIB"],
 )
 
-filtered_archive = use_repo_rule(
-    "@toolchains_llvm//toolchain:sysroot.bzl",
-    "sysroot",
+verified_tree_archive = use_repo_rule(
+    "//fips:repositories.bzl",
+    "verified_tree_archive",
 )
 
-filtered_archive(
+verified_tree_archive(
     name = "fips_go_amd64",
-    include_patterns = ["**"],
     sha256 = "5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053",
-    strip_components = 1,
+    strip_prefix = "go",
+    type = "tar.gz",
     urls = ["https://go.dev/dl/go1.26.5.linux-amd64.tar.gz"],
 )
 
-foreign_tools = use_extension("@rules_foreign_cc//foreign_cc:extensions.bzl", "tools")
-use_repo(
-    foreign_tools,
-    "rules_foreign_cc_framework_toolchains",
+verified_tree_archive(
+    name = "fips_go_arm64",
+    sha256 = "fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49",
+    strip_prefix = "go",
+    type = "tar.gz",
+    urls = ["https://go.dev/dl/go1.26.5.linux-arm64.tar.gz"],
 )
 
 fips_sources = use_extension("//fips:extensions.bzl", "fips_sources")
@@ -86,7 +415,9 @@ use_repo(
     "fips_bash_exec_amd64",
     "fips_bash_exec_arm64",
     "fips_llvm_musl_amd64",
+    "fips_llvm_musl_arm64",
     "fips_qemu_aarch64",
+    "fips_zlib",
     "musl_amd64_sysroot",
     "musl_arm64_sysroot",
     "musl_src",
@@ -95,14 +426,18 @@ use_repo(
 )
 
 register_toolchains(
-    "@rules_foreign_cc_framework_toolchains//:all",
-    "//fips/toolchains:foreign_autoconf_toolchain",
-    "//fips/toolchains:foreign_automake_toolchain",
-    "//fips/toolchains:foreign_m4_toolchain",
-    "//fips/toolchains:foreign_make_toolchain",
-    "//fips/toolchains:foreign_pkgconfig_toolchain",
+    "//fips/toolchains:glibc_cc_amd64_toolchain",
+    "//fips/toolchains:glibc_cc_arm64_toolchain",
+    "//fips/toolchains:glibc_cc_arm64_native_toolchain",
     "//fips/toolchains:foreign_cc_amd64_toolchain",
     "//fips/toolchains:foreign_cc_arm64_toolchain",
+    "//fips/toolchains:foreign_cc_arm64_native_toolchain",
+    "//fips/toolchains:glibc_cc_amd64_exec_toolchain",
+    "//fips/toolchains:glibc_cc_arm64_exec_toolchain",
     "//fips/toolchains:linux_amd64_toolchain",
+    "//fips/toolchains:linux_amd64_glibc_toolchain",
     "//fips/toolchains:linux_arm64_cross_toolchain",
+    "//fips/toolchains:linux_arm64_glibc_cross_toolchain",
+    "//fips/toolchains:linux_arm64_glibc_native_toolchain",
+    "//fips/toolchains:linux_arm64_native_toolchain",
 )

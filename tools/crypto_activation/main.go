@@ -1,5 +1,5 @@
 // crypto_activation runs a packaged OpenSSL command through the SDK-owned
-// musl loader. It is compiled as a static executable for both the Bazel
+// runtime loader. It is compiled as a static executable for both the Bazel
 // execution platform and the deployment target.
 package main
 
@@ -15,7 +15,7 @@ import (
 	"syscall"
 )
 
-const launchConfigSuffix = ".rules_fips.json"
+const launchConfigSuffix = ".rules_elixir_mix.crypto.json"
 
 var qemuAarch64 string
 
@@ -170,8 +170,8 @@ func preparePackagedLaunch(configPath string, arguments, environment []string) (
 	if err := requireExecutable("packaged runtime program", program); err != nil {
 		return command{}, command{}, err
 	}
-	loader := filepath.Join(sdkRoot, "lib", "ld-musl.so.1")
-	if err := requireExecutable("musl loader", loader); err != nil {
+	loader := filepath.Join(sdkRoot, "lib", "ld-runtime.so.1")
+	if err := requireExecutable("runtime loader", loader); err != nil {
 		return command{}, command{}, err
 	}
 	runtimeArgs := []string{
@@ -310,10 +310,10 @@ func prepare(arguments, environment []string) (command, error) {
 	if err != nil {
 		return command{}, fmt.Errorf("resolve SDK root: %w", err)
 	}
-	loader := filepath.Join(root, "lib", "ld-musl.so.1")
+	loader := filepath.Join(root, "lib", "ld-runtime.so.1")
 	openssl := filepath.Join(root, "bin", "openssl")
 	for description, path := range map[string]string{
-		"musl loader":        loader,
+		"runtime loader":     loader,
 		"OpenSSL executable": openssl,
 	} {
 		info, statErr := os.Stat(path)
@@ -354,11 +354,11 @@ func loaderExecutable(loader string, arguments []string) (string, []string, erro
 	}
 	binary, err := elf.Open(loader)
 	if err != nil {
-		return "", nil, fmt.Errorf("inspect musl loader architecture: %w", err)
+		return "", nil, fmt.Errorf("inspect runtime loader architecture: %w", err)
 	}
 	machine := binary.Machine
 	if err := binary.Close(); err != nil {
-		return "", nil, fmt.Errorf("close musl loader: %w", err)
+		return "", nil, fmt.Errorf("close runtime loader: %w", err)
 	}
 	native := elf.EM_NONE
 	switch runtime.GOARCH {
@@ -415,6 +415,9 @@ func replaceEnvironment(environment []string, replacements map[string]string, re
 	for _, entry := range environment {
 		name, _, found := strings.Cut(entry, "=")
 		if !found {
+			continue
+		}
+		if strings.HasPrefix(name, "LD_") {
 			continue
 		}
 		if _, replaced := replacements[name]; replaced {

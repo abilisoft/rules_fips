@@ -1,110 +1,214 @@
-"""rules_foreign_cc builds with certificate references and runtime evidence."""
+"""Hermetic OpenSSL FIPS source builds and normalized runtime evidence."""
 
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
-load("//fips:providers.bzl", "FipsCryptoInfo")
+load(
+    "@rules_cc//cc:action_names.bzl",
+    "CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME",
+    "CPP_LINK_EXECUTABLE_ACTION_NAME",
+    "C_COMPILE_ACTION_NAME",
+)
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("//fips:providers.bzl", "FipsCryptoInfo", "ForeignToolboxInfo")
 load("//fips:source_versions.bzl", "OPENSSL_CORE_SOURCE", "OPENSSL_FIPS_CERTIFICATE_REFERENCE", "OPENSSL_FIPS_SOURCE")
 
 _TOOLCHAIN_TYPE = Label("//fips:toolchain_type")
-_TARGET_AMD64 = Label("//fips/platforms:target_amd64")
-_TARGET_ARM64 = Label("//fips/platforms:target_arm64")
-_FOREIGN_PERL = Label("//fips/toolchains:foreign_perl")
-_FOREIGN_TOOLBOX = Label("//fips/toolchains:foreign_toolbox")
-_FOREIGN_TOOLBOX_SHELL = Label("//fips/toolchains:foreign_toolbox_shell")
-_LLVM_MUSL = Label("//fips/toolchains:llvm_musl")
-_LLVM_TOOLS = {
-    name: Label("//fips/toolchains:llvm_musl/bin/{}".format(name))
-    for name in [
-        "ar",
-        "clang",
-        "clang++",
-        "ld.lld",
-        "nm",
-        "objcopy",
-        "objdump",
-        "ranlib",
-        "readelf",
-        "strip",
-    ]
-}
-_MUSL_AMD64_SYSROOT = Label("@musl_amd64_sysroot//:sysroot")
-_MUSL_AMD64_MARKER = Label("@musl_amd64_sysroot//:usr/include/stdio.h")
-_MUSL_ARM64_SYSROOT = Label("@musl_arm64_sysroot//:sysroot")
-_MUSL_ARM64_MARKER = Label("@musl_arm64_sysroot//:usr/include/stdio.h")
-_OPENSSL_CORE_SOURCE = Label("@openssl_core_src//:srcs")
-_OPENSSL_FIPS_SOURCE = Label("@openssl_fips_src//:srcs")
 
-def _llvm_tool(name):
-    return "$(execpath {})".format(_LLVM_TOOLS[name])
-
-def _toolbox_shell():
-    return "$(execpath {})".format(_FOREIGN_TOOLBOX_SHELL)
-
-def _foreign_path():
-    return ":".join([
-        "$$(dirname %s)" % _toolbox_shell(),
-        "$$(dirname $(execpath {}))".format(_FOREIGN_PERL),
-    ])
+def _execution_path(path):
+    return path if path.startswith("/") else "/proc/self/cwd/" + path
 
 def _file_named(files, basename):
     for file in files:
         if file.basename == basename:
             return file
-    fail("rules_foreign_cc output did not contain %s" % basename)
+    fail("OpenSSL source output did not contain %s" % basename)
 
 def _directory_named(files, basename):
     for file in files:
         if file.is_directory and file.basename == basename:
             return file
-    fail("rules_foreign_cc output did not contain directory %s" % basename)
+    fail("OpenSSL source output did not contain directory %s" % basename)
 
-def _sysroot(marker):
-    return "$$(dirname $$(dirname $$(dirname $(execpath %s))))" % marker
+def _runtime_library_path(platform):
+    directories = []
+    for file in platform.libc_runtime_files.to_list():
+        if file.dirname not in directories:
+            directories.append(file.dirname)
+    return ":".join(directories)
 
-def _openssl_env(marker, triplet):
-    sysroot = _sysroot(marker)
-    resource_dir = sysroot + "/usr/lib/llvm22/lib/clang/22"
-    compile_flags = " ".join([
-        "--target=" + triplet,
-        "--sysroot=" + sysroot,
-        "-resource-dir=" + resource_dir,
-        "-B" + sysroot + "/usr/lib/",
-        "-O2",
-        "-fPIC",
-    ])
-    link_flags = " ".join([
-        "--target=" + triplet,
-        "--sysroot=" + sysroot,
-        "-resource-dir=" + resource_dir,
-        "-B" + sysroot + "/usr/lib/",
-        "--rtlib=compiler-rt",
-        "--unwindlib=libunwind",
-        "-fuse-ld=" + _llvm_tool("ld.lld"),
-        "-Wl,-S",
-        "-Wl,-z,relro,-z,now",
-        "-Wl,--dynamic-linker=/proc/self/cwd/lib/ld-musl.so.1",
-        "-Wl,-rpath,/proc/self/cwd/lib",
-    ])
-    return {
-        "AR": _llvm_tool("ar"),
-        "CC": _llvm_tool("clang"),
-        "CFLAGS": compile_flags,
-        "CONFIG_SHELL": _toolbox_shell(),
-        "CXX": _llvm_tool("clang++"),
-        "GOCACHE": "$$BUILD_TMPDIR/gocache",
-        "HOME": "$$BUILD_TMPDIR",
-        "LD": _llvm_tool("ld.lld"),
-        "LDFLAGS": link_flags,
-        "NM": _llvm_tool("nm"),
-        "OBJCOPY": _llvm_tool("objcopy"),
-        "OBJDUMP": _llvm_tool("objdump"),
-        "PERL": "$(execpath {})".format(_FOREIGN_PERL),
-        "PATH": _foreign_path(),
-        "READELF": _llvm_tool("readelf"),
+def _cc_command_lines(ctx, cc_toolchain, requested_features):
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = requested_features,
+        unsupported_features = ctx.disabled_features,
+    )
+    compile_variables = cc_common.create_compile_variables(
+        cc_toolchain = cc_toolchain,
+        feature_configuration = feature_configuration,
+        user_compile_flags = ["-fPIC"],
+    )
+    dynamic_link_variables = cc_common.create_link_variables(
+        cc_toolchain = cc_toolchain,
+        feature_configuration = feature_configuration,
+        is_linking_dynamic_library = True,
+    )
+    executable_link_variables = cc_common.create_link_variables(
+        cc_toolchain = cc_toolchain,
+        feature_configuration = feature_configuration,
+    )
+    return struct(
+        compile = cc_common.get_memory_inefficient_command_line(
+            action_name = C_COMPILE_ACTION_NAME,
+            feature_configuration = feature_configuration,
+            variables = compile_variables,
+        ),
+        dynamic_link = cc_common.get_memory_inefficient_command_line(
+            action_name = CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
+            feature_configuration = feature_configuration,
+            variables = dynamic_link_variables,
+        ),
+        executable_link = cc_common.get_memory_inefficient_command_line(
+            action_name = CPP_LINK_EXECUTABLE_ACTION_NAME,
+            feature_configuration = feature_configuration,
+            variables = executable_link_variables,
+        ),
+    )
+
+def _source_root(configure):
+    if configure.basename != "Configure":
+        fail("OpenSSL source marker must be named Configure")
+    return configure.dirname
+
+def _source_outputs(ctx):
+    if ctx.attr.mode == "core":
+        return struct(
+            artifacts = [
+                ctx.actions.declare_file(ctx.label.name + "/bin/openssl"),
+                ctx.actions.declare_directory(ctx.label.name + "/include"),
+                ctx.actions.declare_file(ctx.label.name + "/lib/libcrypto.a"),
+                ctx.actions.declare_file(ctx.label.name + "/lib/libssl.a"),
+            ],
+            configure_options = ["no-shared", "no-tests"],
+            make_targets = ["build_sw", "install_sw"],
+            staged = [
+                struct(destination_index = 0, directory = False, source = "bin/openssl"),
+                struct(destination_index = 1, directory = True, source = "include"),
+                struct(destination_index = 2, directory = False, source = "lib/libcrypto.a"),
+                struct(destination_index = 3, directory = False, source = "lib/libssl.a"),
+            ],
+        )
+    return struct(
+        artifacts = [ctx.actions.declare_file(ctx.label.name + "/lib/ossl-modules/fips.so")],
+        configure_options = ["enable-fips", "no-tests"],
+        make_targets = ["build_sw", "install_fips"],
+        staged = [struct(destination_index = 0, directory = False, source = "lib/ossl-modules/fips.so")],
+    )
+
+def _openssl_source_build_impl(ctx):
+    platform = ctx.toolchains[_TOOLCHAIN_TYPE].fips
+    cc_toolchain = find_cc_toolchain(ctx)
+    toolbox = ctx.attr.toolbox[ForeignToolboxInfo]
+    source = _source_outputs(ctx)
+    command_lines = _cc_command_lines(
+        ctx,
+        cc_toolchain,
+        ctx.features + (["rules_fips_dynamic_executable"] if ctx.attr.mode == "core" else []),
+    )
+    work_dir = ctx.actions.declare_directory(ctx.label.name + "/work")
+    config = ctx.actions.declare_file(ctx.label.name + "/build.json")
+    outputs = [
+        {
+            "destination": source.artifacts[item.destination_index].path,
+            "directory": item.directory,
+            "source": item.source,
+        }
+        for item in source.staged
+    ]
+    link_flags = command_lines.executable_link if ctx.attr.mode == "core" else command_lines.dynamic_link
+    environment = {
+        "AR": _execution_path(cc_toolchain.ar_executable),
+        "CC": _execution_path(cc_toolchain.compiler_executable),
+        "CFLAGS": " ".join(command_lines.compile),
+        "CONFIG_SHELL": _execution_path(toolbox.sh.path),
+        "CPPFLAGS": "",
+        "CXX": _execution_path(cc_toolchain.compiler_executable),
+        "LDFLAGS": " ".join(link_flags),
+        "LD": _execution_path(cc_toolchain.compiler_executable),
+        "LANG": "C",
+        "LC_ALL": "C",
+        "NM": _execution_path(platform.llvm_nm),
+        "PATH": _execution_path(toolbox.bin_dir),
+        "RANLIB": _execution_path(platform.llvm_ranlib),
         "SOURCE_DATE_EPOCH": "0",
-        "SHELL": _toolbox_shell(),
-        "STRIP": _llvm_tool("strip"),
-        "TMPDIR": "$$BUILD_TMPDIR",
+        "ZERO_AR_DATE": "1",
     }
+    ctx.actions.write(
+        output = config,
+        content = json.encode({
+            "configure": ctx.file.configure.path,
+            "configure_args": [
+                platform.openssl_target,
+                "--prefix=/",
+                "--openssldir=/ssl",
+                "--libdir=lib",
+            ] + source.configure_options,
+            "environment": environment,
+            "make": toolbox.make.path,
+            "make_args": ["-s", "-j%d" % ctx.attr.jobs],
+            "make_targets": source.make_targets,
+            "outputs": outputs,
+            "perl": toolbox.perl.path,
+            "shell": toolbox.sh.path,
+            "source_dir": _source_root(ctx.file.configure),
+            "work_dir": work_dir.path,
+        }),
+    )
+    ctx.actions.run(
+        arguments = [config.path],
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = ctx.executable.driver,
+        execution_requirements = {"block-network": "1"},
+        inputs = depset(
+            direct = [config, ctx.file.configure],
+            transitive = [
+                cc_toolchain.all_files,
+                ctx.attr.driver[DefaultInfo].files,
+                ctx.attr.driver[DefaultInfo].default_runfiles.files,
+                ctx.attr.source[DefaultInfo].files,
+                toolbox.files,
+            ],
+        ),
+        mnemonic = "OpenSslFipsSourceBuild",
+        outputs = source.artifacts + [work_dir],
+        progress_message = "Building OpenSSL %s for %s/%s" % (ctx.attr.mode, platform.libc, platform.arch),
+    )
+    return [DefaultInfo(files = depset(source.artifacts))]
+
+_openssl_source_build = rule(
+    implementation = _openssl_source_build_impl,
+    attrs = {
+        "configure": attr.label(allow_single_file = True, mandatory = True),
+        "driver": attr.label(
+            cfg = "exec",
+            default = Label("//fips/private:foreign_build_driver"),
+            executable = True,
+        ),
+        "jobs": attr.int(default = 8),
+        "mode": attr.string(mandatory = True, values = ["core", "provider"]),
+        "source": attr.label(mandatory = True),
+        "toolbox": attr.label(
+            cfg = "exec",
+            default = Label("//fips/toolchains:foreign_toolbox"),
+            providers = [ForeignToolboxInfo],
+        ),
+    },
+    fragments = ["cpp"],
+    toolchains = [_TOOLCHAIN_TYPE] + use_cc_toolchain(),
+)
 
 def _openssl_finalize_impl(ctx):
     platform = ctx.toolchains[_TOOLCHAIN_TYPE].fips
@@ -118,6 +222,17 @@ def _openssl_finalize_impl(ctx):
     manifest = ctx.actions.declare_file(ctx.label.name + "/FIPS_BUILD.json")
     core_license = ctx.actions.declare_file(ctx.label.name + "/licenses/openssl-core-LICENSE.txt")
     fips_license = ctx.actions.declare_file(ctx.label.name + "/licenses/openssl-fips-provider-LICENSE.txt")
+    runtime_entries = [
+        struct(destination = "bin/openssl", file = openssl_bin),
+        struct(destination = "lib/ossl-modules/fips.so", file = fips_module),
+        struct(destination = "ssl/openssl.cnf", file = ctx.file.openssl_config),
+        struct(destination = "licenses/openssl-core-LICENSE.txt", file = core_license),
+        struct(destination = "licenses/openssl-fips-provider-LICENSE.txt", file = fips_license),
+        struct(destination = "licenses/libc-LICENSE.txt", file = platform.libc_license_file),
+    ] + [
+        struct(destination = "lib/" + entry.destination, file = entry.file)
+        for entry in platform.libc_runtime_entries
+    ]
 
     ctx.actions.symlink(output = core_license, target_file = ctx.file.core_license)
     ctx.actions.symlink(output = fips_license, target_file = ctx.file.fips_license)
@@ -132,10 +247,10 @@ def _openssl_finalize_impl(ctx):
             libssl.path,
             manifest.path,
             platform.arch,
-            platform.musl_loader_path,
-            platform.sysroot_path,
+            platform.libc_runtime_entries[0].file.path,
+            _runtime_library_path(platform),
             platform.llvm_readelf,
-            platform.qemu_aarch64_file.path if platform.arch == "arm64" else "-",
+            platform.qemu_aarch64_file.path if platform.qemu_aarch64_file else "-",
             OPENSSL_FIPS_CERTIFICATE_REFERENCE,
             OPENSSL_FIPS_SOURCE.version,
             OPENSSL_FIPS_SOURCE.sha256,
@@ -143,8 +258,8 @@ def _openssl_finalize_impl(ctx):
             OPENSSL_CORE_SOURCE.sha256,
         ],
         env = {
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C.UTF-8",
+            "LANG": "C",
+            "LC_ALL": "C",
             "SOURCE_DATE_EPOCH": "0",
         },
         executable = ctx.executable.validator,
@@ -162,16 +277,17 @@ def _openssl_finalize_impl(ctx):
             ],
             transitive = [
                 platform.clang_files,
+                platform.libc_runtime_files,
                 platform.qemu_aarch64_files,
                 platform.sysroot_files,
             ],
         ),
         mnemonic = "OpenSslFipsFinalize",
         outputs = [manifest],
-        progress_message = "Checking rules_foreign_cc OpenSSL FIPS outputs for %s" % platform.arch,
+        progress_message = "Checking OpenSSL FIPS outputs for %s/%s" % (platform.libc, platform.arch),
     )
 
-    files = depset([
+    files = depset(direct = [
         libcrypto,
         libssl,
         include_dir,
@@ -181,10 +297,8 @@ def _openssl_finalize_impl(ctx):
         core_license,
         fips_license,
         manifest,
-        platform.musl_libc_file,
-        platform.musl_license_file,
-        platform.musl_loader_file,
-    ])
+        platform.libc_license_file,
+    ], transitive = [platform.libc_runtime_files])
     return [
         DefaultInfo(files = files),
         FipsCryptoInfo(
@@ -194,16 +308,15 @@ def _openssl_finalize_impl(ctx):
             manifest = manifest,
             module_name = "OpenSSL FIPS Provider",
             module_version = OPENSSL_FIPS_SOURCE.version,
-            runtime_files = depset([
+            runtime_entries = runtime_entries,
+            runtime_files = depset(direct = [
                 openssl_bin,
                 fips_module,
                 ctx.file.openssl_config,
                 core_license,
                 fips_license,
-                platform.musl_libc_file,
-                platform.musl_license_file,
-                platform.musl_loader_file,
-            ]),
+                platform.libc_license_file,
+            ], transitive = [platform.libc_runtime_files]),
             service_indicator = "provider-properties-fips=yes",
             static_libs = depset([libssl, libcrypto], order = "preorder"),
         ),
@@ -227,7 +340,6 @@ _openssl_finalize = rule(
         ),
         "provider": attr.label(mandatory = True),
         "validator": attr.label(
-            allow_single_file = True,
             cfg = "exec",
             default = Label("//fips/private:fips_artifact_validator"),
             executable = True,
@@ -235,45 +347,6 @@ _openssl_finalize = rule(
     },
     toolchains = [_TOOLCHAIN_TYPE],
 )
-
-def _openssl_foreign_build_data():
-    return [
-        _FOREIGN_TOOLBOX,
-        _FOREIGN_TOOLBOX_SHELL,
-        _LLVM_MUSL,
-        _LLVM_TOOLS["ar"],
-        _LLVM_TOOLS["clang"],
-        _LLVM_TOOLS["clang++"],
-        _LLVM_TOOLS["ld.lld"],
-        _LLVM_TOOLS["nm"],
-        _LLVM_TOOLS["objcopy"],
-        _LLVM_TOOLS["objdump"],
-        _LLVM_TOOLS["ranlib"],
-        _LLVM_TOOLS["readelf"],
-        _LLVM_TOOLS["strip"],
-        _FOREIGN_PERL,
-    ] + select({
-        _TARGET_AMD64: [_MUSL_AMD64_SYSROOT, _MUSL_AMD64_MARKER],
-        _TARGET_ARM64: [_MUSL_ARM64_SYSROOT, _MUSL_ARM64_MARKER],
-    })
-
-def _openssl_selected_env():
-    return select({
-        _TARGET_AMD64: _openssl_env(
-            _MUSL_AMD64_MARKER,
-            "x86_64-alpine-linux-musl",
-        ),
-        _TARGET_ARM64: _openssl_env(
-            _MUSL_ARM64_MARKER,
-            "aarch64-alpine-linux-musl",
-        ),
-    })
-
-def _openssl_target():
-    return select({
-        _TARGET_AMD64: ["linux-x86_64"],
-        _TARGET_ARM64: ["linux-aarch64"],
-    })
 
 def openssl_fips(name, visibility = None, tags = None):
     """Builds the OpenSSL core and certificate-referenced provider.
@@ -283,56 +356,24 @@ def openssl_fips(name, visibility = None, tags = None):
       visibility: Optional target visibility.
       tags: Optional tags applied to generated targets.
     """
-    core_name = name + "_core_foreign"
-    provider_name = name + "_provider_foreign"
+    core_name = name + "_core_source"
+    provider_name = name + "_provider_source"
     common = {}
     if tags != None:
         common["tags"] = tags
 
-    configure_make(
+    _openssl_source_build(
         name = provider_name,
-        args = [
-            "-s",
-            "-j8",
-            "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
-        ],
-        build_data = _openssl_foreign_build_data(),
-        configure_command = "Configure",
-        configure_options = _openssl_target() + [
-            "--libdir=lib",
-            "enable-fips",
-            "no-tests",
-        ],
-        configure_prefix = "$(execpath {})".format(_FOREIGN_PERL),
-        env = _openssl_selected_env(),
-        lib_source = _OPENSSL_FIPS_SOURCE,
-        out_include_dir = "",
-        out_lib_dir = "lib/ossl-modules",
-        out_shared_libs = ["fips.so"],
-        targets = ["", "install_fips"],
+        configure = Label("@openssl_fips_src//:Configure"),
+        mode = "provider",
+        source = Label("@openssl_fips_src//:srcs"),
         **common
     )
-
-    configure_make(
+    _openssl_source_build(
         name = core_name,
-        args = [
-            "-s",
-            "-j8",
-            "RANLIB=$$EXT_BUILD_ROOT$$/" + _llvm_tool("ranlib"),
-        ],
-        build_data = _openssl_foreign_build_data(),
-        configure_command = "Configure",
-        configure_options = _openssl_target() + [
-            "--libdir=lib",
-            "no-shared",
-            "no-tests",
-        ],
-        configure_prefix = "$(execpath {})".format(_FOREIGN_PERL),
-        env = _openssl_selected_env(),
-        lib_source = _OPENSSL_CORE_SOURCE,
-        out_binaries = ["openssl"],
-        out_static_libs = ["libcrypto.a", "libssl.a"],
-        targets = ["build_sw", "install_sw"],
+        configure = Label("@openssl_core_src//:Configure"),
+        mode = "core",
+        source = Label("@openssl_core_src//:srcs"),
         **common
     )
 

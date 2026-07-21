@@ -5,14 +5,57 @@ package(default_visibility = ["//fips:__subpackages__"])
 exports_files([
     "busybox.BUILD.bazel",
     "make.BUILD.bazel",
+    "ssp_local.c",
 ])
 
-host_go_tool(
+[
+    host_go_tool(
+        name = "foreign_build_driver_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+        go = "@fips_go_arm64//sysroot:sysroot" if arch == "arm64" else "@fips_go_amd64//sysroot:sysroot",
+        source = "//tools/foreign_build_driver:main.go",
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
+    name = "foreign_build_driver",
+    actual = select({
+        "@platforms//cpu:arm64": ":foreign_build_driver_arm64",
+        "//conditions:default": ":foreign_build_driver_amd64",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+[
+    host_go_tool(
+        name = "fips_artifact_validator_%s" % arch,
+        arch = arch,
+        exec_compatible_with = [
+            "@platforms//cpu:arm64" if arch == "arm64" else "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+        go = "@fips_go_arm64//sysroot:sysroot" if arch == "arm64" else "@fips_go_amd64//sysroot:sysroot",
+        source = "//tools/fips_artifact_validator:main.go",
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
+alias(
     name = "fips_artifact_validator",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
-    source = "//tools/fips_artifact_validator:main.go",
+    actual = select({
+        "@platforms//cpu:arm64": ":fips_artifact_validator_arm64",
+        "//conditions:default": ":fips_artifact_validator_amd64",
+    }),
     visibility = ["//visibility:public"],
 )

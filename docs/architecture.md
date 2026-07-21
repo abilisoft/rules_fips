@@ -8,7 +8,7 @@ in generated shell.
 ```mermaid
 flowchart LR
     S[Pinned source catalog or exact overrides] --> C[OpenSSL core and FIPS provider]
-    T[Pinned musl and LLVM toolchains] --> C
+    T[Pinned musl/glibc sysroots and LLVM toolchains] --> C
     C --> V[Architecture, provider, and integrity checks]
     V --> D[Normalized build SDK]
     V --> R[Explicit deployment payload]
@@ -25,15 +25,14 @@ flowchart LR
 4. Declared validators inspect target ELF identity, hash artifacts, run
    `fipsinstall`, and load the configured provider. Arm64 provider checks use a
    pinned static QEMU user-mode emulator on AMD64 workers.
-5. A normalized directory supplies headers, static libraries, OpenSSL, provider,
-   configuration, musl loader/libc, evidence, and license files.
+5. A normalized directory supplies headers, static libraries, OpenSSL,
+   provider, configuration, the selected loader/libc, evidence, and licenses.
 6. Static native tools implement provider activation and execution through the
    SDK-owned loader without invoking a shell.
 
-Supported target platforms are `//fips/platforms:linux_amd64` and
-`//fips/platforms:linux_arm64`. Arm64 is cross-compiled on the supported Linux
-AMD64 execution platform and checked under emulation; no native-hardware claim
-is implied.
+Supported targets are AMD64 and Arm64 with either musl 1.2.5 or a glibc 2.35
+ABI baseline. Arm64 may build natively or cross-build on AMD64. Cross-built
+provider checks use pinned QEMU; no native-hardware claim is implied by them.
 
 ## Linkage boundary
 
@@ -42,7 +41,7 @@ consumer + static libcrypto.a
         │
         └── loads ossl-modules/fips.so
                          │
-                         └── SDK-owned musl loader + libc
+                         └── SDK-owned loader + libc runtime
 ```
 
 The OpenSSL build produces static `libcrypto.a` and `libssl.a`. `fips.so` is
@@ -78,12 +77,25 @@ No upstream source file is patched. Configuration uses upstream-supported
 options. The repository contains no shell scripts and no repository-owned
 `run_shell` action.
 
-OpenSSL still uses its upstream Configure/make system. That unavoidable
-command-language boundary is delegated to `rules_foreign_cc` with declared
-compilers, musl sysroots, BusyBox utilities, GNU make, Perl, and other tools.
-The outer Bash process belongs to the selected Bazel execution platform.
-Staging, validation, target emulation, activation, and launch use Starlark
-actions or compiled Go helpers.
+OpenSSL still uses its upstream Configure/make system. Starlark constructs the
+argument vectors and exact environment, then runs a statically compiled driver
+that starts declared Perl and Make directly. Upstream Make recipes use the
+declared Bash/BusyBox toolbox. No host shell, compiler, loader, libc, or PATH
+lookup is part of the action. Staging, validation, target emulation, activation,
+and launch use Starlark actions or static Go helpers.
+
+Validators and staging tools receive a closed, deterministic environment. They
+do not inherit the worker's `PATH`, dynamic-loader injection variables, or
+provider configuration, and copied SDK trees reject symlinks that escape their
+declared source root.
+
+The execution-configured SDK activation and runtime-launcher tools are built
+from the integrity-pinned Go archive without resolving the application FIPS
+toolchain. Their cache and module state are declared outputs. Go subprocesses
+change working directories internally, so compiler scratch uses the
+action-private temporary directory; no scratch file is read as an input or
+published as an artifact. Target-configured helpers remain selected by the
+application CPU and libc profile.
 
 ## Trust boundary
 

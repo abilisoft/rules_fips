@@ -6,6 +6,7 @@ load(
     "FipsCryptoSdkInfo",
     "FipsPlatformInfo",
     "fips_crypto_sdk",
+    "fips_rust_toolchain",
     "openssl_fips",
     "openssl_fips_sdk",
 )
@@ -15,12 +16,13 @@ _PUBLIC_API = (
     FipsCryptoSdkInfo,
     FipsPlatformInfo,
     fips_crypto_sdk,
+    fips_rust_toolchain,
     openssl_fips,
     openssl_fips_sdk,
 )
 
 def _rules_fips_smoke_impl(ctx):
-    if len(_PUBLIC_API) != 6:
+    if len(_PUBLIC_API) != 7:
         fail("rules_fips public API is incomplete")
     output = ctx.actions.declare_file(ctx.label.name + ".txt")
     ctx.actions.write(output, "rules_fips public API resolved\n")

@@ -7,7 +7,8 @@
 
 Hermetic Bazel rules for building a normalized OpenSSL FIPS crypto SDK. The SDK
 contains static archives and headers for consumers, plus the provider, config,
-musl runtime, and shell-free activation/launch tools needed at deployment.
+selected libc runtime, and shell-free activation/launch tools needed at
+deployment.
 
 > [!IMPORTANT]
 > The project records build and provider evidence. It does not certify,
@@ -24,7 +25,7 @@ musl runtime, and shell-free activation/launch tools needed at deployment.
 deployment payload. A consumer receives:
 
 - `include/`, `lib/libcrypto.a`, and `lib/libssl.a` for its build;
-- `fips.so`, `openssl.cnf`, OpenSSL, the musl loader/libc, and license/evidence
+- `fips.so`, `openssl.cnf`, OpenSSL, the selected loader/libc, and license/evidence
   files for deployment;
 - a native activation tool and a native runtime-loader wrapper; and
 - opaque argument/environment templates. Consumers do not branch on backend
@@ -37,7 +38,7 @@ The current tested catalog selects:
 | OpenSSL core | 3.5.7 LTS |
 | OpenSSL FIPS provider | 3.1.2, referencing CMVP certificate #4985 |
 | Targets | Linux AMD64 and Linux Arm64 |
-| C library | musl |
+| Target C libraries | musl 1.2.5 and glibc 2.35 ABI baseline |
 | Build compiler | Clang/LLD 22.1.8 |
 | Arm64 validation | static QEMU 11.0.2, build-time only |
 
@@ -60,6 +61,10 @@ host is AMD64; that is emulated target execution, not native hardware evidence:
 bazel build --config=local --config=linux_arm64 \
   //examples:openssl_fips_sdk
 ```
+
+Select `linux_amd64_glibc` or `linux_arm64_glibc` for the glibc 2.35 ABI
+baseline. That baseline is compatible with Ubuntu 22.04 and newer without
+making Ubuntu—or any distribution—part of the target contract.
 
 OpenSSL 3 loads its FIPS provider dynamically. `fully_static` is therefore
 false even though the consumer can link the OpenSSL core statically. The SDK
@@ -127,19 +132,38 @@ The SDK never silently falls back to a host OpenSSL installation or another
 backend. These are engineering controls and recorded observations—not a
 compliance conclusion. See [FIPS model](docs/fips-model.md).
 
+The exported C/C++ contract also supplies the declared GNU execution toolchain
+needed by transitive build tools, independently of musl/glibc application
+targets. Executables are static by default; shared-library links never inherit
+`-static`. An explicitly dynamic executable is fail-closed unless its owning
+rule carries the SDK's static launcher, loader, and runtime-library runfiles.
+This is the contract consumed by `rules_elixir_mix` when it normalizes every
+native executable in a source-built OTP tree.
+
+Rust consumers that compile native code in Cargo build scripts can use
+`fips_rust_toolchain` to wrap a normal `rules_rust` toolchain. The adapter keeps
+build scripts and proc macros on the declared GNU execution ABI, makes the
+target C/C++ toolchain tree visible to Cargo's action, and applies Rust's static
+CRT only to executable crates. Its execution closure includes a source-built,
+checksum-pinned zlib; it never searches the worker for `libz.so`, a compiler,
+or a target sysroot. See [Portability](docs/portability.md) for the tested
+AMD64/Arm64 and musl/glibc matrix.
+
 ## Hermeticity and portability
 
 Sources, compilers, sysroots, build tools, and licenses are fetched by exact
 URL and SHA-256. Build actions use declared inputs; the default BuildBuddy
 execution image is digest-pinned and has action networking disabled.
-The unavoidable upstream Configure/make boundary is delegated to
-`rules_foreign_cc`; repository-owned staging and SDK assembly are Starlark or
-compiled Go, with no repository shell scripts or source patches.
+Starlark invokes a small statically compiled driver for the filesystem/process
+operations Bazel cannot express. The driver starts upstream OpenSSL Configure,
+declared Perl, declared Make, and the declared shell directly; it never emits
+or evaluates repository-authored shell. There are no source patches.
 
 The checked-in BuildBuddy configuration supplies a digest-pinned Linux
-execution image. `--config=local` disables remote services; local execution
-requires the host facilities used by Bazel and `rules_foreign_cc`. SDK outputs
-remain architecture-specific and require a compatible Linux kernel and CPU.
+execution image. `--config=local` disables remote services. Build actions still
+use the same declared compilers, sysroots, interpreters, utilities, and runtime
+libraries; the remaining host boundary is Bazel itself plus the Linux kernel
+and CPU. SDK outputs remain architecture-specific.
 
 Read [Portability and hermeticity](docs/portability.md) before treating
 “relocatable” as “runs everywhere.”

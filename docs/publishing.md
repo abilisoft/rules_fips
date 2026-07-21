@@ -10,7 +10,7 @@ FIPS compliance of an application or deployment.
 
 ## Current publication state
 
-[`v0.2.1`](https://github.com/abilisoft/rules_fips/tree/v0.2.1) is the current
+[`v0.3.0`](https://github.com/abilisoft/rules_fips/tree/v0.3.0) is the current
 GitHub release. Registry publication is intentionally deferred. The signed tag
 identifies the source archive; it does not create a BCR entry. The **Release**
 workflow creates the corresponding GitHub release page.
@@ -20,26 +20,26 @@ tag cannot dispatch it.
 
 ## Consume before BCR
 
-Until a BCR entry exists, declare version `0.2.0` and override it with the full
+Until a BCR entry exists, declare the released module version and override it with the full
 commit referenced by the verified signed tag:
 
 ```starlark
 bazel_dep(
     name = "rules_fips",
-    version = "0.2.1",
+    version = "0.3.0",
 )
 
 git_override(
     module_name = "rules_fips",
     remote = "https://github.com/abilisoft/rules_fips.git",
-    commit = "<full peeled commit ID for v0.2.1>",
+    commit = "<full peeled commit ID for v0.3.0>",
 )
 ```
 
 Resolve and verify the annotated tag before copying its peeled commit ID:
 
 ```console
-git fetch https://github.com/abilisoft/rules_fips.git tag v0.2.1
+git fetch https://github.com/abilisoft/rules_fips.git tag v0.3.0
 git verify-tag FETCH_HEAD
 git rev-parse FETCH_HEAD^{}
 ```
@@ -50,8 +50,8 @@ a branch or a tag name in `git_override`.
 ## Bazel Central Registry release
 
 The checked-in BCR templates describe the signed GitHub tag archive. BCR
-presubmit runs the standalone consumer module under `e2e/bcr` with Bazel 9 on
-Debian 13 for Linux AMD64 and Arm64. Its smoke target resolves the public
+presubmit runs the standalone consumer module under `e2e/bcr` with Bazel 9 for
+Linux AMD64 and Arm64. Its smoke target resolves the public
 Starlark API without compiling OpenSSL. Full AMD64/Arm64 SDK builds and provider
 checks remain separate required CI gates.
 
@@ -67,8 +67,8 @@ For each version:
    validation and review.
 
 ```console
-git tag -s v0.2.1 -m "rules_fips v0.2.1"
-git push origin v0.2.1
+git tag -s v0.3.0 -m "rules_fips v0.3.0"
+git push origin v0.3.0
 ```
 
 The release workflow rejects lightweight tags, unverified tag signatures,

@@ -3,8 +3,9 @@
 load(
     "//fips:providers.bzl",
     "FipsPlatformInfo",
-    "MuslSysrootInfo",
 )
+
+_RUNTIME_STAGER = Label("//fips/private:fips_artifact_validator")
 
 def _single_tree(target, description):
     roots = target[DefaultInfo].files.to_list()
@@ -14,157 +15,142 @@ def _single_tree(target, description):
 
 def _clang_values(ctx):
     return struct(
-        cc = ctx.file.clang,
-        cxx = ctx.file.clangxx,
         files = ctx.attr.clang_tools[DefaultInfo].files,
-        llvm_ar = ctx.file.ar.path,
-        llvm_ld = ctx.file.ld.path,
         llvm_nm = ctx.file.nm.path,
-        llvm_objcopy = ctx.file.objcopy.path,
-        llvm_objdump = ctx.file.objdump.path,
         llvm_ranlib = ctx.file.ranlib.path,
         llvm_readelf = ctx.file.readelf.path,
-        llvm_strip = ctx.file.strip.path,
     )
 
 def _archive_tool(target, description, suffix):
     root, files = _single_tree(target, description)
     return root.path + suffix, files
 
-def _musl_source_root(marker):
-    suffix = "/COPYRIGHT"
+def _stage_runtime_entries(ctx, entries):
+    staged = []
+    arguments = ["stage-runtime"]
+    for entry in entries:
+        output = ctx.actions.declare_file(ctx.label.name + "_runtime/" + entry.destination)
+        arguments.extend([entry.file.path, output.path])
+        staged.append(struct(destination = entry.destination, file = output))
+    ctx.actions.run(
+        arguments = arguments,
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = ctx.executable._runtime_stager,
+        execution_requirements = {"block-network": "1"},
+        inputs = [entry.file for entry in entries],
+        outputs = [entry.file for entry in staged],
+        mnemonic = "RuntimeStage",
+        progress_message = "Copying declared {} {} runtime".format(ctx.attr.libc, ctx.attr.arch),
+    )
+    return staged
+
+def _bootlin_root(marker, target_triplet):
+    suffix = "/{}/sysroot/usr/include/stdio.h".format(target_triplet)
     if not marker.path.endswith(suffix):
-        fail("musl source marker must end with %s" % suffix)
+        fail("Bootlin sysroot marker must end in {}".format(suffix))
     return marker.path.removesuffix(suffix)
 
-def _build_musl_crt(ctx, clang, musl):
-    source_root = _musl_source_root(ctx.file.musl_source_marker)
-    musl_arch = "x86_64" if ctx.attr.arch == "amd64" else "aarch64"
-    source_by_output = {
-        "Scrt1.o": "crt/Scrt1.c",
-        "crt1.o": "crt/crt1.c",
-        "crti.o": "crt/%s/crti.s" % musl_arch,
-        "crtn.o": "crt/%s/crtn.s" % musl_arch,
-        "rcrt1.o": "crt/rcrt1.c",
-    }
-    outputs = []
-    for output_name, source_path in source_by_output.items():
-        output = ctx.actions.declare_file(ctx.label.name + "_crt/" + output_name)
-        ctx.actions.run(
-            arguments = [
-                "--target=" + musl.target_triplet,
-                "--sysroot=" + musl.sysroot_path,
-                "-resource-dir=" + musl.resource_dir,
-                "-I" + source_root + "/arch/" + musl_arch,
-                "-I" + source_root + "/arch/generic",
-                "-I" + source_root + "/src/include",
-                "-I" + source_root + "/include",
-                "-I" + source_root + "/src/internal",
-                "-fPIC",
-                "-c",
-                source_root + "/" + source_path,
-                "-o",
-                output.path,
-            ],
-            env = {
-                "LANG": "C.UTF-8",
-                "LC_ALL": "C.UTF-8",
-                "SOURCE_DATE_EPOCH": "0",
-            },
-            executable = clang.cc,
-            execution_requirements = {"block-network": "1"},
-            inputs = depset(
-                transitive = [
-                    clang.files,
-                    musl.files,
-                    ctx.attr.musl_source[DefaultInfo].files,
-                ],
-            ),
-            mnemonic = "MuslCrtCompile",
-            outputs = [output],
-            progress_message = "Compiling musl CRT %s for %s" % (output_name, ctx.attr.arch),
-        )
-        outputs.append(output)
-    return outputs
+def _runtime_file(files, sysroot, basename):
+    for directory in ["lib", "usr/lib", "lib64", "usr/lib64"]:
+        preferred = sysroot + "/" + directory + "/" + basename
+        matches = [file for file in files if file.path == preferred]
+        if len(matches) == 1:
+            return matches[0]
+    matches = [
+        file
+        for file in files
+        if file.basename == basename and file.path.startswith(sysroot + "/")
+    ]
+    if not matches:
+        matches = [file for file in files if file.basename == basename]
+    if len(matches) != 1:
+        fail("expected one declared {} runtime file below {}, got {}".format(basename, sysroot, matches))
+    return matches[0]
 
-def _fips_platform_toolchain_impl(ctx):
+def _fips_bootlin_platform_toolchain_impl(ctx):
     clang = _clang_values(ctx)
     go_bin, go_files = _archive_tool(
         ctx.attr.go,
         "pinned Go archive",
         "/bin/go",
     )
-    musl = ctx.attr.musl[MuslSysrootInfo]
-    crt_files = _build_musl_crt(ctx, clang, musl)
+    files = ctx.attr.sysroot[DefaultInfo].files
+    file_list = files.to_list()
+    root = _bootlin_root(ctx.file.sysroot_marker, ctx.attr.target_triplet)
+    sysroot = root + "/" + ctx.attr.target_triplet + "/sysroot"
+    loader_file = _runtime_file(file_list, sysroot, ctx.attr.loader)
+    runtime_entries = [
+        struct(destination = "ld-runtime.so.1", file = loader_file),
+        # Some libc objects declare their loader's canonical SONAME in
+        # DT_NEEDED. Preserve that name beside the normalized launcher entry.
+        struct(destination = ctx.attr.loader, file = loader_file),
+    ]
+    if ctx.attr.libc == "musl":
+        # musl's loader and libc are the same DSO; linked objects request its
+        # libc.so SONAME even though the installed loader has an arch name.
+        runtime_entries.append(struct(destination = "libc.so", file = loader_file))
+    for name in ctx.attr.runtime_libraries:
+        runtime_entries.append(struct(
+            destination = name,
+            file = _runtime_file(file_list, sysroot, name),
+        ))
+    runtime_entries = _stage_runtime_entries(ctx, runtime_entries)
+    libc_license = ctx.file.libc_license
+    qemu_aarch64_file = ctx.file.qemu_aarch64 if ctx.attr.qemu_aarch64 else None
+    qemu_aarch64_files = ctx.attr.qemu_aarch64[DefaultInfo].files if ctx.attr.qemu_aarch64 else depset()
     info = FipsPlatformInfo(
         arch = ctx.attr.arch,
         clang_files = clang.files,
-        clang_library_path = "",
-        clang_resource_dir = musl.resource_dir,
-        clang_runtime_files = clang.files,
-        compiler_rt_license_path = musl.compiler_rt_license,
-        compiler_rt_path = musl.compiler_rt,
-        crt_dir = crt_files[0].dirname,
-        crt_files = depset(crt_files),
         go_bin = go_bin,
         go_files = go_files,
-        libc = "musl",
-        llvm_ar = clang.llvm_ar,
-        llvm_ld = clang.llvm_ld,
+        libc = ctx.attr.libc,
+        libc_license_file = libc_license,
+        libc_runtime_entries = runtime_entries,
+        libc_runtime_files = depset([entry.file for entry in runtime_entries]),
+        libc_version = ctx.attr.libc_version,
         llvm_nm = clang.llvm_nm,
-        llvm_objcopy = clang.llvm_objcopy,
-        llvm_objdump = clang.llvm_objdump,
         llvm_ranlib = clang.llvm_ranlib,
         llvm_readelf = clang.llvm_readelf,
-        llvm_strip = clang.llvm_strip,
-        musl_revision = musl.revision,
-        musl_libc_file = musl.libc,
-        musl_license_file = musl.license,
-        musl_loader_file = musl.loader,
-        musl_loader_path = musl.loader.path,
-        musl_triplet = musl.target_triplet,
         openssl_target = ctx.attr.openssl_target,
-        qemu_aarch64_file = ctx.file.qemu_aarch64,
-        qemu_aarch64_files = ctx.attr.qemu_aarch64[DefaultInfo].files,
-        resource_dir = musl.resource_dir,
-        sysroot_files = musl.files,
-        sysroot_path = musl.sysroot_path,
+        qemu_aarch64_file = qemu_aarch64_file,
+        qemu_aarch64_files = qemu_aarch64_files,
+        sysroot_files = files,
     )
     return [
         info,
         platform_common.ToolchainInfo(fips = info),
     ]
 
-fips_platform_toolchain = rule(
-    implementation = _fips_platform_toolchain_impl,
+fips_bootlin_platform_toolchain = rule(
+    implementation = _fips_bootlin_platform_toolchain_impl,
     attrs = {
         "arch": attr.string(mandatory = True),
-        "ar": attr.label(allow_single_file = True, mandatory = True),
-        "clang": attr.label(allow_single_file = True, mandatory = True),
         "clang_tools": attr.label(mandatory = True),
-        "clangxx": attr.label(allow_single_file = True, mandatory = True),
         "go": attr.label(mandatory = True),
-        "musl": attr.label(
-            mandatory = True,
-            providers = [MuslSysrootInfo],
-        ),
-        "musl_source": attr.label(mandatory = True),
-        "musl_source_marker": attr.label(
-            allow_single_file = True,
-            mandatory = True,
-        ),
-        "ld": attr.label(allow_single_file = True, mandatory = True),
+        "libc": attr.string(mandatory = True, values = ["glibc", "musl"]),
+        "libc_version": attr.string(mandatory = True),
+        "libc_license": attr.label(allow_single_file = True, mandatory = True),
+        "loader": attr.string(mandatory = True),
         "nm": attr.label(allow_single_file = True, mandatory = True),
-        "objcopy": attr.label(allow_single_file = True, mandatory = True),
-        "objdump": attr.label(allow_single_file = True, mandatory = True),
         "openssl_target": attr.string(mandatory = True),
-        "qemu_aarch64": attr.label(
-            allow_single_file = True,
-            mandatory = True,
-        ),
+        "qemu_aarch64": attr.label(allow_single_file = True),
         "ranlib": attr.label(allow_single_file = True, mandatory = True),
         "readelf": attr.label(allow_single_file = True, mandatory = True),
-        "strip": attr.label(allow_single_file = True, mandatory = True),
+        "runtime_libraries": attr.string_list(),
+        "sysroot": attr.label(mandatory = True),
+        "sysroot_marker": attr.label(allow_single_file = True, mandatory = True),
+        "target_triplet": attr.string(mandatory = True),
+        "_runtime_stager": attr.label(
+            default = _RUNTIME_STAGER,
+            executable = True,
+            cfg = "exec",
+        ),
     },
-    doc = "Describes one self-contained musl Linux target supported by rules_fips.",
+    doc = "Describes one checksum-pinned Linux libc target supported by rules_fips.",
 )
+
+fips_glibc_platform_toolchain = fips_bootlin_platform_toolchain

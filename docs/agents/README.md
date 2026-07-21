@@ -17,9 +17,10 @@ can consume without turning engineering evidence into a compliance claim.
 3. Never add upstream source patches or compatibility shims. Exhaust documented
    configure/build options; report a real incompatibility if they are
    insufficient.
-4. Do not add repository shell scripts or repository-owned `run_shell`
-   actions. Upstream Configure/make execution stays inside
-   `rules_foreign_cc`; use Starlark or compiled helpers for project logic.
+4. Do not add repository shell scripts, generated shell commands, or
+   repository-owned `run_shell` actions. Starlark owns argument/environment
+   construction; static helpers are reserved for unavoidable process,
+   filesystem, ELF, and runtime-launch operations.
 5. Do not add vendored binaries, personal identity, machine-local paths, or
    credentials.
 6. Keep exact versions, URLs, SHA-256 values, strip prefixes, manifests, BCR
@@ -47,7 +48,7 @@ Fix the disagreement.
 ## Public API
 
 Until the module is published to BCR, pin the full verified commit referenced
-by the signed `v0.2.1` tag, following
+by the signed `v0.3.0` tag, following
 [Publishing](../publishing.md#consume-before-bcr). Never track a branch or tag.
 
 ```starlark
@@ -71,7 +72,7 @@ digest and must remain marked outside the tested catalog.
 Do not report a higher level than completed:
 
 1. **Inspection** — source pins, build flags, target names, and docs agree.
-2. **Go tests** — `go test ./tools/...`.
+2. **Go tests** — test and vet every static helper with the pinned Go version.
 3. **Bazel load** — `bazel query //...`.
 4. **Bazel analysis** — analyze the explicit affected target and platform.
 5. **Crypto build** — build the affected `_crypto` target.

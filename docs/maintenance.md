@@ -9,7 +9,7 @@ public language synchronized.
 | Data | File |
 | --- | --- |
 | Tested OpenSSL catalog and defaults | `fips/versions.bzl` |
-| musl, sysroot, and execution-tool source defaults | `fips/extensions.bzl` and `MODULE.bazel` |
+| libc sysroots and execution-tool source defaults | `fips/extensions.bzl` and `MODULE.bazel` |
 | Bazel modules and build-tool archives | `MODULE.bazel` |
 | Resolved source manifest | `fips/metadata.bzl` |
 | OpenSSL build configuration | `fips/foreign_crypto.bzl` |
@@ -32,10 +32,11 @@ is incomplete.
    ```
 
 6. Run Go tests and Bazel package analysis.
-7. Build AMD64 and Arm64 SDK targets.
-8. Run provider activation/loading checks for each target architecture.
-9. Inspect the source and crypto evidence manifests.
-10. Only then call the new entry tested or make it the default.
+7. Build the musl and glibc SDKs for AMD64 and Arm64.
+8. Run provider activation/loading checks for all four target profiles.
+9. Run strict C, Rust, proc-macro, and Cargo native-build consumers on both architectures.
+10. Inspect the source and crypto evidence manifests.
+11. Only then call the new entry tested or make it the default.
 
 The checked-in `.bazelrc` uses `--lockfile_mode=error`, so normal validation
 fails on a stale lockfile instead of silently rewriting it.

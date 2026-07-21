@@ -11,6 +11,8 @@ exports_files([
     "extensions.bzl",
     "metadata.bzl",
     "providers.bzl",
+    "repositories.bzl",
+    "rust_adapter.bzl",
     "toolbox.bzl",
     "versions.bzl",
 ])

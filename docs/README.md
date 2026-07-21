@@ -14,6 +14,7 @@ Start with the page that matches the question you are trying to answer.
 | How do I select or override OpenSSL versions? | [Selecting versions](versions.md) |
 | How are versions, checksums, and certificate references updated? | [Maintenance](maintenance.md) |
 | How is a signed release prepared and later submitted to BCR? | [Publishing](publishing.md) |
+| What changed between signed releases? | [Changelog](../CHANGELOG.md) |
 | How should an AI coding agent inspect or change the repository? | [AI agent guide](agents/README.md) |
 
 For the shortest path to a build, use the [root README](../README.md). For a

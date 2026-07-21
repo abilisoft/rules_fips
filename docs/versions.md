@@ -16,12 +16,16 @@ Execution tools and target sysroots are separate internal pins in
 | Input | Current pin |
 | --- | --- |
 | Bazel | 9.2.0 |
-| Clang and LLD execution tools | 22.1.8 |
-| Target LLVM headers, libc++, unwind, and compiler-rt | 22.1.3 |
-| musl target runtime | 1.2.6-r2 |
+| Clang, LLD, LLVM tools, resource headers, and compiler-rt | 22.1.8 |
+| LLVM tool execution libc | Alpine musl 1.2.6-r2 |
+| musl target sysroot | Bootlin 2025.08, musl 1.2.5, GCC runtime 14.3.0 |
+| glibc target sysroot | Bootlin 2022.08, glibc 2.35, GCC runtime 11.3.0 |
 | Go tool compiler | 1.26.5 |
 | GNU make | 4.4.1-r4 |
 | BusyBox | 1.37.0-r31 |
+| CMake | 4.4.0 |
+| Ninja | 1.13.2 |
+| Rust execution zlib | 1.3.2, built from source |
 | Perl | 5.40.1 via `rules_perl` 1.1.2 |
 | Arm64 user-mode emulator | QEMU 11.0.2-r1 |
 
