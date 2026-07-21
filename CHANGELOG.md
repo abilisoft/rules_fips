@@ -4,6 +4,15 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.1 - 2026-07-21
+
+### Fixed
+
+- Dynamic runtime launchers preserve the public executable identity when they
+  dispatch to a declared sibling `.real-*` program. OTP frontends such as
+  `escript` therefore retain their dispatch semantics without exposing the
+  hidden runtime filename as `argv[0]`.
+
 ## 0.3.0 - 2026-07-21
 
 ### Added
