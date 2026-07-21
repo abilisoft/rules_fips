@@ -1,0 +1,41 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_proc_macro")
+load(":run_binary_test.bzl", "run_binary_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "cc_binary",
+    srcs = ["main.c"],
+)
+
+cc_test(
+    name = "cc_test",
+    srcs = ["main.c"],
+)
+
+rust_proc_macro(
+    name = "consumer_macro",
+    srcs = ["consumer_macro.rs"],
+    crate_name = "consumer_macro",
+    edition = "2024",
+    rustc_flags = ["-Dwarnings"],
+)
+
+rust_binary(
+    name = "rust_binary",
+    srcs = ["main.rs"],
+    edition = "2024",
+    proc_macro_deps = [":consumer_macro"],
+    rustc_flags = ["-Dwarnings"],
+)
+
+run_binary_test(
+    name = "cc_binary_test",
+    binary = ":cc_binary",
+)
+
+run_binary_test(
+    name = "rust_binary_test",
+    binary = ":rust_binary",
+)

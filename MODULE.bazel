@@ -10,7 +10,36 @@ bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 bazel_dep(name = "rules_perl", version = "1.1.2")
+
+bazel_dep(name = "rules_rust", version = "0.71.3", dev_dependency = True)
+
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust", dev_dependency = True)
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    edition = "2024",
+    exec_triple = "x86_64-unknown-linux-gnu",
+    target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "x86_64-unknown-linux-musl",
+    versions = ["1.92.0"],
+)
+rust.repository_set(
+    name = "rust_linux_x86_64",
+    target_compatible_with = [
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    target_triple = "aarch64-unknown-linux-musl",
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
 
 http_archive = use_repo_rule(
     "@bazel_tools//tools/build_defs/repo:http.bzl",
