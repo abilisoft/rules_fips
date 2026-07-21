@@ -67,7 +67,7 @@ func prepare(arguments, environment []string) (command, error) {
 	if err != nil {
 		return command{}, err
 	}
-	program, err := executableFromEnvironment(programVariable)
+	defaultProgram, err := executableFromEnvironment(programVariable)
 	if err != nil {
 		return command{}, err
 	}
@@ -75,11 +75,8 @@ func prepare(arguments, environment []string) (command, error) {
 	if err != nil {
 		return command{}, fmt.Errorf("identify runtime launcher executable: %w", err)
 	}
-	program = selectedProgram(program, executableIdentity)
-	programArgv0 := os.Getenv(argv0Variable)
-	if programArgv0 == "" {
-		programArgv0 = program
-	}
+	program := selectedProgram(defaultProgram, executableIdentity)
+	programArgv0 := selectedArgv0(os.Getenv(argv0Variable), defaultProgram, program, executableIdentity)
 	libraryPath := os.Getenv(libraryVariable)
 	if libraryPath == "" {
 		return command{}, fmt.Errorf("%s is required", libraryVariable)
@@ -304,6 +301,16 @@ func selectedProgram(defaultProgram, invokedAs string) string {
 		return candidate
 	}
 	return defaultProgram
+}
+
+func selectedArgv0(configured, defaultProgram, program, invokedAs string) string {
+	if configured != "" {
+		return configured
+	}
+	if program != defaultProgram {
+		return invokedAs
+	}
+	return program
 }
 
 func executableFromEnvironment(name string) (string, error) {

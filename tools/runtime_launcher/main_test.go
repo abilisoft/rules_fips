@@ -386,8 +386,17 @@ func TestSelectedProgramUsesRealSiblingForExecutableIdentity(t *testing.T) {
 	if got := selectedProgram(defaultProgram, invokedAs); got != portProgram {
 		t.Fatalf("selected program = %q, want %q", got, portProgram)
 	}
+	if got := selectedArgv0("", defaultProgram, portProgram, invokedAs); got != invokedAs {
+		t.Fatalf("selected argv0 = %q, want public launcher %q", got, invokedAs)
+	}
 	if got := selectedProgram(defaultProgram, filepath.Join(root, "tools/erl")); got != defaultProgram {
 		t.Fatalf("selected fallback = %q, want %q", got, defaultProgram)
+	}
+	if got := selectedArgv0("", defaultProgram, defaultProgram, invokedAs); got != defaultProgram {
+		t.Fatalf("fallback argv0 = %q, want program %q", got, defaultProgram)
+	}
+	if got := selectedArgv0("declared-argv0", defaultProgram, portProgram, invokedAs); got != "declared-argv0" {
+		t.Fatalf("configured argv0 = %q, want declared override", got)
 	}
 }
 
