@@ -54,11 +54,11 @@ fips_rust_toolchain(
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
+    pkg_config_sdk = ":external_pkg_config_sdk",
     target_compatible_with = [
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
-    pkg_config_sdk = ":external_pkg_config_sdk",
     toolchain = ":fake_rust_toolchain",
     tools_repository = "",
 )

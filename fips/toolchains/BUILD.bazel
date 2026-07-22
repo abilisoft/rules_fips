@@ -20,8 +20,8 @@ load(":cc_toolchain.bzl", "fips_bootlin_cc_toolchain_config", "fips_glibc_cc_too
 load(":compiler_runtime.bzl", "libssp_nonshared")
 load(
     ":defs.bzl",
-    "fips_bootlin_runtime",
     "fips_bootlin_platform_toolchain",
+    "fips_bootlin_runtime",
     "fips_glibc_platform_toolchain",
 )
 load(":runtime_tool.bzl", "hermetic_runtime_tool")
@@ -827,7 +827,10 @@ fips_bootlin_runtime(
     arch = "amd64",
     libc = "musl",
     loader = "ld-musl-x86_64.so.1",
-    runtime_libraries = ["libgcc_s.so.1", "libstdc++.so.6"],
+    runtime_libraries = [
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
     sysroot = "@fips_musl_1_2_5_amd64//:toolchain",
     sysroot_marker = "@fips_musl_1_2_5_amd64//:x86_64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
     target_triplet = "x86_64-buildroot-linux-musl",
@@ -838,7 +841,10 @@ fips_bootlin_runtime(
     arch = "arm64",
     libc = "musl",
     loader = "ld-musl-aarch64.so.1",
-    runtime_libraries = ["libgcc_s.so.1", "libstdc++.so.6"],
+    runtime_libraries = [
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
     sysroot = "@fips_musl_1_2_5_arm64//:toolchain",
     sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
     target_triplet = "aarch64-buildroot-linux-musl",

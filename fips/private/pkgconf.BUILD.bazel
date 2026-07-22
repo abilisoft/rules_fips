@@ -40,10 +40,10 @@ cc_library(
     srcs = [
         "libpkgconf/argvsplit.c",
         "libpkgconf/audit.c",
+        "libpkgconf/bsdstubs.c",
         "libpkgconf/buffer.c",
         "libpkgconf/bufferset.c",
         "libpkgconf/bytecode.c",
-        "libpkgconf/bsdstubs.c",
         "libpkgconf/cache.c",
         "libpkgconf/client.c",
         "libpkgconf/dependency.c",
