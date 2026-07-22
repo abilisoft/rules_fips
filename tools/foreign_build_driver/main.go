@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const executionRootPrefix = "/proc/self/cwd/"
+const executionRootPrefix = "__RULES_FIPS_EXEC_ROOT__/"
 
 type config struct {
 	ConfigureArgs []string          `json:"configure_args"`

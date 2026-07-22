@@ -13,8 +13,6 @@ import (
 var toolchainRoot string
 var loaderRelativePath string
 
-const executionRootMarker = "/proc/self/cwd/"
-
 var allowedTools = map[string]struct{}{
 	"ar":      {},
 	"clang":   {},
@@ -32,11 +30,11 @@ func absoluteFromExecutionRoot(path, root string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("empty embedded toolchain root")
 	}
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
 	if root == "" {
 		return "", fmt.Errorf("empty execution root")
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
 	}
 	return filepath.Join(root, path), nil
 }
@@ -60,13 +58,40 @@ func executionRoot() (string, error) {
 	return root, nil
 }
 
-func resolveExecutionRootMarkers(arguments []string, root string) []string {
+func resolveExecutionRootPaths(arguments []string, root string) []string {
 	resolved := make([]string, 0, len(arguments))
-	prefix := filepath.Clean(root) + string(filepath.Separator)
-	for _, argument := range arguments {
-		resolved = append(resolved, strings.ReplaceAll(argument, executionRootMarker, prefix))
+	workingDirectory, workingDirectoryErr := os.Getwd()
+	rebaseRelativePaths := workingDirectoryErr != nil || filepath.Clean(workingDirectory) != filepath.Clean(root)
+	resolveNext := false
+	for _, original := range arguments {
+		argument := original
+		if resolveNext && rebaseRelativePaths {
+			argument = resolveExecutionRootPath(argument, root)
+		}
+		resolveNext = false
+		for _, flag := range []string{"--gcc-toolchain=", "--sysroot=", "-fuse-ld=", "-resource-dir=", "-L"} {
+			if rebaseRelativePaths && strings.HasPrefix(argument, flag) {
+				path := strings.TrimPrefix(argument, flag)
+				argument = flag + resolveExecutionRootPath(path, root)
+				break
+			}
+		}
+		if argument == "-isystem" || argument == "-resource-dir" {
+			resolveNext = true
+		}
+		if rebaseRelativePaths && strings.HasSuffix(argument, ".a") {
+			argument = resolveExecutionRootPath(argument, root)
+		}
+		resolved = append(resolved, argument)
 	}
 	return resolved
+}
+
+func resolveExecutionRootPath(path, root string) string {
+	if strings.HasPrefix(path, "bazel-out/") || strings.HasPrefix(path, "external/") {
+		return filepath.Join(root, filepath.FromSlash(path))
+	}
+	return path
 }
 
 func run() error {
@@ -111,7 +136,7 @@ func run() error {
 			filepath.Dir(wrapper),
 		)
 	}
-	arguments = append(arguments, resolveExecutionRootMarkers(os.Args[1:], execRoot)...)
+	arguments = append(arguments, resolveExecutionRootPaths(os.Args[1:], execRoot)...)
 	if err := os.Setenv("RULES_FIPS_EXEC_ROOT", execRoot); err != nil {
 		return fmt.Errorf("publish execution root: %w", err)
 	}

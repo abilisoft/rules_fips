@@ -45,7 +45,8 @@ Repository and build actions use declared, immutable inputs:
   before any extracted tree becomes an action input;
 - custom source URLs also require SHA-256;
 - Clang/LLD 22.1.8, Go 1.26.5, GNU make, Perl, CMake 4.4.0,
-  Ninja 1.13.2, BusyBox 1.37.0-r31, QEMU 11.0.2-r1, sysroots, and licenses are pinned;
+  Ninja 1.13.2, pkgconf 3.0.4, BusyBox 1.37.0-r31, QEMU 11.0.2-r1,
+  sysroots, and licenses are pinned;
 - AMD64 and Arm64 C/C++ toolchains use explicit musl or glibc sysroots;
 - network access is blocked for build, validation, and packaging actions;
 - manifests expose resolved source identity rather than a floating label.
@@ -124,16 +125,33 @@ target compiler tree and sysroot are declared inputs to the build-script action,
 while the build script and proc macro remain GNU-executable. The repository's
 consumer matrix inspects that action closure and runs a build script that calls
 both the C compiler and CMake for AMD64 and Arm64 after changing into its output
-directory. The adapter passes native tools as execroot-relative inputs;
-`rules_rust` resolves them once before process startup, and the declared static
-tool launcher normalizes execroot-rooted compiler arguments. Native tools and
+directory. The adapter passes native compiler tools as declared inputs and uses
+`rules_rust`'s action-root expansion to resolve their absolute execroot paths once
+before process startup, and the declared static launcher anchors toolchain-owned sysroot, include,
+resource, library, and linker arguments to that same execroot. Native tools and
 their sysroot therefore remain reachable after a build system changes its
-working directory. CMake and Ninja are themselves checksum-pinned declared
-tools. A source-built zlib 1.3.2 supplies the only non-libc shared library
-required by the Rust/LLVM execution tools. No host compiler, host `libz.so`, or
-action-time download completes that path. The native C compiler needs no
-per-crate annotation; rules that invoke additional native tools such as CMake
-declare those tools through the normal `rules_rust` toolchain interface.
+working directory.
+
+CMake and Ninja are checksum-pinned declared tools. A `cargo_build_script`
+that invokes them lists their public targets in `tools` and passes them through
+`$(execpath ...)`; `rules_rust` converts those values to stable absolute paths.
+The ruleset intentionally does not publish cwd-relative `CMAKE` or `NINJA`
+template variables. A source-built zlib 1.3.2 supplies the only non-libc shared
+library required by the Rust/LLVM execution tools. No host compiler, host
+`libz.so`, or action-time download completes that path. The native C compiler
+needs no per-crate annotation; rules that invoke additional native tools use
+the normal declared-tool attributes of their build-rule API.
+
+Target pkg-config SDKs follow the same separation. `target_pkg_config_sdk`
+binds one execution-configured pkg-config executable to the target `.pc`
+metadata, headers, libraries, and support files. The Rust adapter carries that
+provider's complete depset into the Cargo build-script action and publishes
+only absolute paths resolved through `rules_rust`'s action-root expansion.
+Host `PATH`, `PKG_CONFIG_PATH`, and pkgconf's built-in system include/library
+paths are empty. Cross compilation is explicit, and an incomplete target SDK
+fails closed. The regression matrix builds unmodified
+`yeslogic-fontconfig-sys` 6.0.1 for AMD64 and Arm64 musl from an AMD64 GNU
+execution platform.
 
 The normalized SDK's activation and runtime-launcher execution tools are a
 separate contract again: they compile from the pinned, static Go toolchain for

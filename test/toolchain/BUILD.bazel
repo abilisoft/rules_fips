@@ -32,8 +32,8 @@ cargo_build_script(
     name = "consumer_build_script",
     srcs = ["build.rs"],
     build_script_env = {
-        "CMAKE": "$(CMAKE)",
-        "NINJA": "$(NINJA)",
+        "CMAKE": "$(execpath //fips/toolchains:hermetic_cmake)",
+        "EXPECTED_NINJA": "$(execpath //fips/toolchains:hermetic_ninja)",
     },
     crate_name = "consumer_build_script",
     data = [
@@ -43,7 +43,7 @@ cargo_build_script(
     ],
     edition = "2024",
     rustc_flags = ["-Dwarnings"],
-    toolchains = [
+    tools = [
         "//fips/toolchains:hermetic_cmake",
         "//fips/toolchains:hermetic_ninja",
     ],

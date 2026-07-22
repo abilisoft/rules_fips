@@ -1,0 +1,102 @@
+load("//fips:defs.bzl", "fips_rust_toolchain", "target_pkg_config_sdk")
+load(":pkg_config_check.bzl", "pkg_config_sdk_check")
+
+package(default_visibility = ["//visibility:public"])
+
+constraint_setting(name = "sdk_test")
+
+constraint_value(
+    name = "sdk_test_enabled",
+    constraint_setting = ":sdk_test",
+)
+
+platform(
+    name = "linux_amd64",
+    constraint_values = [
+        ":sdk_test_enabled",
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "linux_arm64",
+    constraint_values = [
+        ":sdk_test_enabled",
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+)
+
+target_pkg_config_sdk(
+    name = "fontconfig_sdk",
+    libdirs = ["lib/pkgconfig"],
+    sdk_files = ["sdk/lib/pkgconfig/fontconfig.pc"],
+    sysroot_marker = "sdk/lib/pkgconfig/fontconfig.pc",
+    sysroot_marker_relative_path = "lib/pkgconfig/fontconfig.pc",
+)
+
+pkg_config_sdk_check(
+    name = "fontconfig_sdk_check",
+    package = "fontconfig",
+    sdk = ":fontconfig_sdk",
+)
+
+target_pkg_config_sdk(
+    name = "openssl_sdk",
+    libdirs = ["lib/pkgconfig"],
+    sysroot = "//examples:openssl_fips_sdk",
+)
+
+pkg_config_sdk_check(
+    name = "openssl_sdk_check",
+    package = "openssl",
+    sdk = ":openssl_sdk",
+)
+
+alias(
+    name = "yeslogic_fontconfig_sys",
+    actual = "@fontconfig_crates//:yeslogic-fontconfig-sys-6.0.1",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__x86_64-unknown-linux-musl__pkg_config",
+    exec_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    pkg_config_sdk = ":fontconfig_sdk",
+    target_compatible_with = [
+        ":sdk_test_enabled",
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_amd64",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__aarch64-unknown-linux-musl__pkg_config",
+    exec_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    pkg_config_sdk = ":fontconfig_sdk",
+    target_compatible_with = [
+        ":sdk_test_enabled",
+        "//fips/platforms:musl",
+        "//fips/platforms:openssl_fips_musl_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools",
+)

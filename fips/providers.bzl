@@ -9,6 +9,7 @@ FipsCryptoInfo = provider(
         "manifest": "Machine-readable build and runtime evidence manifest.",
         "module_name": "Cryptographic module name documented by the certificate reference.",
         "module_version": "Reported module version or update-stream identity.",
+        "pkg_config_dir": "Tree artifact containing producer-installed pkg-config metadata.",
         "runtime_files": "Runtime files required in addition to static archives.",
         "runtime_entries": "Runtime files paired with normalized SDK-relative destinations.",
         "service_indicator": "How approved-service status is enforced or observed.",
@@ -34,6 +35,16 @@ FipsCryptoSdkInfo = provider(
         "runtime_environment": "Runtime environment templates rooted at {sysroot} or {activation_root}.",
         "runtime_files": "Ordered deployment payload files.",
         "sysroot": "Directory artifact containing the complete build SDK layout.",
+    },
+)
+
+TargetPkgConfigSdkInfo = provider(
+    doc = "A declared target SDK and pkg-config executable for Cargo build-script actions.",
+    fields = {
+        "files": "Complete executable and target SDK input closure.",
+        "libdirs": "Execroot-relative directories containing the declared .pc files.",
+        "pkg_config": "Declared execution-configured pkg-config executable.",
+        "sysroot": "Execroot-relative target SDK root.",
     },
 )
 

@@ -14,6 +14,11 @@ func TestStageCryptoSDKNormalizesDeclaredRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFixture(t, filepath.Join(include, "openssl.h"), 0o644)
+	pkgConfig := filepath.Join(root, "pkgconfig")
+	if err := os.MkdirAll(pkgConfig, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, filepath.Join(pkgConfig, "openssl.pc"), 0o644)
 	inputs := make([]string, 0, 7)
 	for _, name := range []string{"libcrypto.a", "libssl.a", "openssl", "fips.so", "openssl.cnf", "crypto-activate", "ld-linux.so"} {
 		path := filepath.Join(root, name)
@@ -24,6 +29,7 @@ func TestStageCryptoSDKNormalizesDeclaredRuntime(t *testing.T) {
 	runtimeOutput := filepath.Join(root, "runtime")
 	if err := stageCryptoSDK([]string{
 		include,
+		pkgConfig,
 		inputs[0],
 		inputs[1],
 		inputs[2],
@@ -34,11 +40,16 @@ func TestStageCryptoSDKNormalizesDeclaredRuntime(t *testing.T) {
 		runtimeOutput,
 		inputs[6],
 		"ld-runtime.so.1",
+		"--declared-pkg-config",
+		filepath.Join(pkgConfig, "openssl.pc"),
+		"--declared-headers",
+		filepath.Join(include, "openssl.h"),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{
 		filepath.Join(output, "lib", "ld-runtime.so.1"),
+		filepath.Join(output, "lib", "pkgconfig", "openssl.pc"),
 		filepath.Join(runtimeOutput, "ld-runtime.so.1"),
 	} {
 		if _, err := os.Stat(path); err != nil {
@@ -48,8 +59,12 @@ func TestStageCryptoSDKNormalizesDeclaredRuntime(t *testing.T) {
 }
 
 func TestStageCryptoSDKRejectsEscapingRuntimeDestination(t *testing.T) {
-	arguments := make([]string, 11)
-	arguments[10] = "../loader"
+	arguments := make([]string, 16)
+	arguments[11] = "../loader"
+	arguments[12] = "--declared-pkg-config"
+	arguments[13] = "pkgconfig/openssl.pc"
+	arguments[14] = "--declared-headers"
+	arguments[15] = "include/openssl.h"
 	if err := stageCryptoSDK(arguments); err == nil {
 		t.Fatal("stageCryptoSDK accepted an escaping runtime destination")
 	}
@@ -175,7 +190,36 @@ func TestStageRuntimeCopiesDeclaredFiles(t *testing.T) {
 	}
 }
 
-func TestCopyDirectoryRejectsEscapingSymlink(t *testing.T) {
+func TestCopyDeclaredFilesAcceptsBazelMappedInput(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "sandbox", "include")
+	physical := filepath.Join(root, "outer-execroot", "include", "openssl", "aes.h")
+	logical := filepath.Join(source, "openssl", "aes.h")
+	if err := os.MkdirAll(filepath.Dir(physical), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(logical), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, physical, 0o644)
+	if err := os.Symlink(physical, logical); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(root, "destination")
+	if err := copyDeclaredFiles(source, destination, []string{logical}); err != nil {
+		t.Fatalf("copyDeclaredFiles(): %v", err)
+	}
+	staged := filepath.Join(destination, "openssl", "aes.h")
+	info, err := os.Lstat(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("staged mode = %v, want a materialized regular file", info.Mode())
+	}
+}
+
+func TestCopyDeclaredFilesRejectsPathOutsideTree(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "source")
 	if err := os.MkdirAll(source, 0o755); err != nil {
@@ -183,26 +227,8 @@ func TestCopyDirectoryRejectsEscapingSymlink(t *testing.T) {
 	}
 	outside := filepath.Join(root, "outside.h")
 	writeFixture(t, outside, 0o644)
-	if err := os.Symlink(outside, filepath.Join(source, "escape.h")); err != nil {
-		t.Fatal(err)
-	}
-	if err := copyDirectory(source, filepath.Join(root, "destination")); err == nil {
-		t.Fatal("copyDirectory accepted a symlink outside the declared source tree")
-	}
-}
-
-func TestCopyDirectoryRejectsDirectorySymlinkCycle(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "source")
-	child := filepath.Join(source, "child")
-	if err := os.MkdirAll(child, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(source, filepath.Join(child, "cycle")); err != nil {
-		t.Fatal(err)
-	}
-	if err := copyDirectory(source, filepath.Join(root, "destination")); err == nil {
-		t.Fatal("copyDirectory accepted a cyclic directory symlink")
+	if err := copyDeclaredFiles(source, filepath.Join(root, "destination"), []string{outside}); err == nil {
+		t.Fatal("copyDeclaredFiles accepted a path outside the declared source tree")
 	}
 }
 

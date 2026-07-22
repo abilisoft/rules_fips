@@ -4,6 +4,7 @@ load(
     "@rules_cc//cc:action_names.bzl",
     "CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME",
     "CPP_LINK_EXECUTABLE_ACTION_NAME",
+    "CPP_LINK_STATIC_LIBRARY_ACTION_NAME",
     "C_COMPILE_ACTION_NAME",
 )
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
@@ -13,8 +14,10 @@ load("//fips:source_versions.bzl", "OPENSSL_CORE_SOURCE", "OPENSSL_FIPS_CERTIFIC
 
 _TOOLCHAIN_TYPE = Label("//fips:toolchain_type")
 
+_EXECUTION_ROOT_PREFIX = "__RULES_FIPS_EXEC_ROOT__/"
+
 def _execution_path(path):
-    return path if path.startswith("/") else "/proc/self/cwd/" + path
+    return path if path.startswith("/") else _EXECUTION_ROOT_PREFIX + path
 
 def _file_named(files, basename):
     for file in files:
@@ -57,6 +60,10 @@ def _cc_command_lines(ctx, cc_toolchain, requested_features):
         feature_configuration = feature_configuration,
     )
     return struct(
+        archiver = cc_common.get_tool_for_action(
+            action_name = CPP_LINK_STATIC_LIBRARY_ACTION_NAME,
+            feature_configuration = feature_configuration,
+        ),
         compile = cc_common.get_memory_inefficient_command_line(
             action_name = C_COMPILE_ACTION_NAME,
             feature_configuration = feature_configuration,
@@ -71,6 +78,10 @@ def _cc_command_lines(ctx, cc_toolchain, requested_features):
             action_name = CPP_LINK_EXECUTABLE_ACTION_NAME,
             feature_configuration = feature_configuration,
             variables = executable_link_variables,
+        ),
+        compiler = cc_common.get_tool_for_action(
+            action_name = C_COMPILE_ACTION_NAME,
+            feature_configuration = feature_configuration,
         ),
     )
 
@@ -87,6 +98,7 @@ def _source_outputs(ctx):
                 ctx.actions.declare_directory(ctx.label.name + "/include"),
                 ctx.actions.declare_file(ctx.label.name + "/lib/libcrypto.a"),
                 ctx.actions.declare_file(ctx.label.name + "/lib/libssl.a"),
+                ctx.actions.declare_directory(ctx.label.name + "/lib/pkgconfig"),
             ],
             configure_options = ["no-shared", "no-tests"],
             make_targets = ["build_sw", "install_sw"],
@@ -95,6 +107,7 @@ def _source_outputs(ctx):
                 struct(destination_index = 1, directory = True, source = "include"),
                 struct(destination_index = 2, directory = False, source = "lib/libcrypto.a"),
                 struct(destination_index = 3, directory = False, source = "lib/libssl.a"),
+                struct(destination_index = 4, directory = True, source = "lib/pkgconfig"),
             ],
         )
     return struct(
@@ -126,14 +139,14 @@ def _openssl_source_build_impl(ctx):
     ]
     link_flags = command_lines.executable_link if ctx.attr.mode == "core" else command_lines.dynamic_link
     environment = {
-        "AR": _execution_path(cc_toolchain.ar_executable),
-        "CC": _execution_path(cc_toolchain.compiler_executable),
+        "AR": _execution_path(command_lines.archiver),
+        "CC": _execution_path(command_lines.compiler),
         "CFLAGS": " ".join(command_lines.compile),
         "CONFIG_SHELL": _execution_path(toolbox.sh.path),
         "CPPFLAGS": "",
-        "CXX": _execution_path(cc_toolchain.compiler_executable),
+        "CXX": _execution_path(command_lines.compiler),
         "LDFLAGS": " ".join(link_flags),
-        "LD": _execution_path(cc_toolchain.compiler_executable),
+        "LD": _execution_path(command_lines.compiler),
         "LANG": "C",
         "LC_ALL": "C",
         "NM": _execution_path(platform.llvm_nm),
@@ -217,6 +230,7 @@ def _openssl_finalize_impl(ctx):
     libcrypto = _file_named(core_files, "libcrypto.a")
     libssl = _file_named(core_files, "libssl.a")
     include_dir = _directory_named(core_files, "include")
+    pkg_config_dir = _directory_named(core_files, "pkgconfig")
     openssl_bin = _file_named(core_files, "openssl")
     fips_module = _file_named(provider_files, "fips.so")
     manifest = ctx.actions.declare_file(ctx.label.name + "/FIPS_BUILD.json")
@@ -291,6 +305,7 @@ def _openssl_finalize_impl(ctx):
         libcrypto,
         libssl,
         include_dir,
+        pkg_config_dir,
         openssl_bin,
         fips_module,
         ctx.file.openssl_config,
@@ -308,6 +323,7 @@ def _openssl_finalize_impl(ctx):
             manifest = manifest,
             module_name = "OpenSSL FIPS Provider",
             module_version = OPENSSL_FIPS_SOURCE.version,
+            pkg_config_dir = pkg_config_dir,
             runtime_entries = runtime_entries,
             runtime_files = depset(direct = [
                 openssl_bin,

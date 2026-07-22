@@ -5,20 +5,46 @@ import (
 	"testing"
 )
 
-func TestResolveExecutionRootMarkers(t *testing.T) {
+func TestAbsoluteFromExecutionRootJoinsDeclaredRelativePath(t *testing.T) {
+	t.Parallel()
+
+	got, err := absoluteFromExecutionRoot("bazel-out/bin/clang", "/sandbox/execroot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "/sandbox/execroot/bazel-out/bin/clang" {
+		t.Fatalf("absoluteFromExecutionRoot() = %q", got)
+	}
+}
+
+func TestResolveExecutionRootPaths(t *testing.T) {
 	t.Parallel()
 
 	arguments := []string{
-		"--sysroot=/proc/self/cwd/external/sysroot",
-		"-fuse-ld=/proc/self/cwd/bazel-out/bin/ld.lld",
+		"--sysroot=external/sysroot",
+		"-fuse-ld=bazel-out/bin/ld.lld",
+		"--gcc-toolchain=external/gcc",
+		"-resource-dir=bazel-out/resource",
+		"-isystem",
+		"external/cxx/include",
+		"-Lexternal/gcc/lib",
+		"external/compiler-rt.a",
+		"-Igenerated",
 		"plain",
 	}
 	want := []string{
 		"--sysroot=/sandbox/execroot/external/sysroot",
 		"-fuse-ld=/sandbox/execroot/bazel-out/bin/ld.lld",
+		"--gcc-toolchain=/sandbox/execroot/external/gcc",
+		"-resource-dir=/sandbox/execroot/bazel-out/resource",
+		"-isystem",
+		"/sandbox/execroot/external/cxx/include",
+		"-L/sandbox/execroot/external/gcc/lib",
+		"/sandbox/execroot/external/compiler-rt.a",
+		"-Igenerated",
 		"plain",
 	}
-	if got := resolveExecutionRootMarkers(arguments, "/sandbox/execroot"); !reflect.DeepEqual(got, want) {
-		t.Fatalf("resolveExecutionRootMarkers() = %q, want %q", got, want)
+	if got := resolveExecutionRootPaths(arguments, "/sandbox/execroot"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolveExecutionRootPaths() = %q, want %q", got, want)
 	}
 }

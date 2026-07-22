@@ -76,17 +76,26 @@ func stageRuntime(args []string) error {
 }
 
 func stageCryptoSDK(args []string) error {
-	if len(args) < 11 || (len(args)-9)%2 != 0 {
-		return fmt.Errorf("stage-crypto-sdk: got %d arguments, want 9 fixed arguments and one or more runtime source/destination pairs", len(args))
+	const declaredPkgConfigFlag = "--declared-pkg-config"
+	const declaredHeadersFlag = "--declared-headers"
+	pkgConfigIndex := slices.Index(args, declaredPkgConfigFlag)
+	headerIndex := slices.Index(args, declaredHeadersFlag)
+	if pkgConfigIndex < 12 || (pkgConfigIndex-10)%2 != 0 ||
+		headerIndex <= pkgConfigIndex+1 || headerIndex == len(args)-1 {
+		return fmt.Errorf(
+			"stage-crypto-sdk: got %d arguments, want 10 fixed arguments, runtime pairs, and Bazel-expanded pkg-config and header inputs",
+			len(args),
+		)
 	}
-	include, libcrypto, libssl := absolute(args[0]), absolute(args[1]), absolute(args[2])
-	openssl, provider, config := absolute(args[3]), absolute(args[4]), absolute(args[5])
-	activation, output, runtimeOutput := absolute(args[6]), absolute(args[7]), absolute(args[8])
+	include, pkgConfig := absolute(args[0]), absolute(args[1])
+	libcrypto, libssl := absolute(args[2]), absolute(args[3])
+	openssl, provider, config := absolute(args[4]), absolute(args[5]), absolute(args[6])
+	activation, output, runtimeOutput := absolute(args[7]), absolute(args[8]), absolute(args[9])
 	runtimeFiles := make([]struct {
 		source      string
 		destination string
-	}, 0, (len(args)-9)/2)
-	for index := 9; index < len(args); index += 2 {
+	}, 0, (pkgConfigIndex-10)/2)
+	for index := 10; index < pkgConfigIndex; index += 2 {
 		destination := args[index+1]
 		if destination == "" || filepath.Base(destination) != destination || destination == "." || destination == ".." {
 			return fmt.Errorf("invalid normalized runtime destination %q", destination)
@@ -117,8 +126,15 @@ func stageCryptoSDK(args []string) error {
 	if err := os.MkdirAll(runtimeOutput, 0o755); err != nil {
 		return err
 	}
-	if err := copyDirectory(include, filepath.Join(output, "include")); err != nil {
+	if err := copyDeclaredFiles(include, filepath.Join(output, "include"), args[headerIndex+1:]); err != nil {
 		return fmt.Errorf("stage OpenSSL headers: %w", err)
+	}
+	if err := copyDeclaredFiles(
+		pkgConfig,
+		filepath.Join(output, "lib", "pkgconfig"),
+		args[pkgConfigIndex+1:headerIndex],
+	); err != nil {
+		return fmt.Errorf("stage OpenSSL pkg-config metadata: %w", err)
 	}
 	files := []struct {
 		source      string
@@ -402,66 +418,23 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, encoded, 0o644)
 }
 
-func copyDirectory(source, destination string) error {
-	resolvedSource, err := filepath.EvalSymlinks(source)
-	if err != nil {
-		return err
-	}
-	ancestors := map[string]struct{}{resolvedSource: {}}
-	return copyDirectoryWithin(resolvedSource, destination, resolvedSource, ancestors)
-}
-
-func copyDirectoryWithin(source, destination, sourceRoot string, ancestors map[string]struct{}) error {
-	entries, err := os.ReadDir(source)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		sourcePath := filepath.Join(source, entry.Name())
-		destinationPath := filepath.Join(destination, entry.Name())
-		if entry.Type()&os.ModeSymlink != 0 {
-			resolved, err := filepath.EvalSymlinks(sourcePath)
-			if err != nil {
-				return err
-			}
-			relative, err := filepath.Rel(sourceRoot, resolved)
-			if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-				return fmt.Errorf("symlink %s escapes declared source tree", sourcePath)
-			}
-			info, err := os.Stat(resolved)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				if _, found := ancestors[resolved]; found {
-					return fmt.Errorf("symlink %s creates a directory cycle", sourcePath)
-				}
-				if err := os.MkdirAll(destinationPath, 0o755); err != nil {
-					return err
-				}
-				ancestors[resolved] = struct{}{}
-				err = copyDirectoryWithin(resolved, destinationPath, sourceRoot, ancestors)
-				delete(ancestors, resolved)
-				if err != nil {
-					return err
-				}
-				continue
-			}
-			if err := copyFile(resolved, destinationPath); err != nil {
-				return err
-			}
-			continue
+func copyDeclaredFiles(sourceRoot, destinationRoot string, declaredFiles []string) error {
+	for _, source := range declaredFiles {
+		source = absolute(source)
+		relative, err := filepath.Rel(sourceRoot, source)
+		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("declared file %s is outside source tree %s", source, sourceRoot)
 		}
-		if entry.IsDir() {
-			if err := os.MkdirAll(destinationPath, 0o755); err != nil {
-				return err
-			}
-			if err := copyDirectoryWithin(sourcePath, destinationPath, sourceRoot, ancestors); err != nil {
-				return err
-			}
-			continue
+		// Bazel expands a declared tree artifact to its regular-file children at
+		// execution time. Sandboxes may represent those declared children as
+		// symlinks into the outer execroot, so physical-target containment is not
+		// a valid hermeticity check here. The expanded logical path is the
+		// declared-input authority; only paths under the declared tree are copied.
+		destination := filepath.Join(destinationRoot, relative)
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return err
 		}
-		if err := copyFile(sourcePath, destinationPath); err != nil {
+		if err := copyFile(source, destination); err != nil {
 			return err
 		}
 	}
