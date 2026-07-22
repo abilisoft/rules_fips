@@ -1,0 +1,108 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@rules_fips//fips/private:configure_header.bzl", "configure_header")
+
+package(default_visibility = ["//visibility:public"])
+
+configure_header(
+    name = "config_h",
+    out = "libpkgconf/config.h",
+    substitutions = {
+        "#mesondefine HAVE_DECL_NL_LANGINFO_L": "#define HAVE_DECL_NL_LANGINFO_L 1",
+        "#mesondefine HAVE_DECL_PLEDGE": "#define HAVE_DECL_PLEDGE 0",
+        "#mesondefine HAVE_DECL_REALLOCARRAY": "#define HAVE_DECL_REALLOCARRAY 1",
+        "#mesondefine HAVE_DECL_STRNDUP": "#define HAVE_DECL_STRNDUP 1",
+        "#mesondefine HAVE_DECL_UNVEIL": "#define HAVE_DECL_UNVEIL 0",
+        "#mesondefine HAVE_REALLOCARRAY": "#define HAVE_REALLOCARRAY 1",
+        "#mesondefine HAVE_STRLCAT": "/* #undef HAVE_STRLCAT */",
+        "#mesondefine HAVE_STRLCPY": "/* #undef HAVE_STRLCPY */",
+        "#mesondefine HAVE_STRNDUP": "#define HAVE_STRNDUP 1",
+        "#mesondefine PACKAGE\n": "/* #undef PACKAGE */\n",
+        "#mesondefine PACKAGE_BUGREPORT": "#define PACKAGE_BUGREPORT \"https://todo.sr.ht/~kaniini/pkgconf\"",
+        "#mesondefine PACKAGE_NAME": "#define PACKAGE_NAME \"pkgconf\"",
+        "#mesondefine PACKAGE_STRING": "/* #undef PACKAGE_STRING */",
+        "#mesondefine PACKAGE_TARNAME": "/* #undef PACKAGE_TARNAME */",
+        "#mesondefine PACKAGE_URL": "/* #undef PACKAGE_URL */",
+        "#mesondefine PACKAGE_VERSION": "#define PACKAGE_VERSION \"3.0.4\"",
+        "#mesondefine PERSONALITY_PATH": "#define PERSONALITY_PATH \"/__rules_fips_no_personality__\"",
+        "#mesondefine PKG_DEFAULT_PATH": "#define PKG_DEFAULT_PATH \"\"",
+        "#mesondefine STDC_HEADERS": "/* #undef STDC_HEADERS */",
+        "#mesondefine SYSTEM_INCLUDEDIR": "#define SYSTEM_INCLUDEDIR \"/__rules_fips_no_system_include__\"",
+        "#mesondefine SYSTEM_LIBDIR": "#define SYSTEM_LIBDIR \"/__rules_fips_no_system_lib__\"",
+        "#mesondefine VERSION": "/* #undef VERSION */",
+        "#mesondefine _FILE_OFFSET_BITS": "#define _FILE_OFFSET_BITS 64",
+        "#mesondefine _LARGE_FILES": "/* #undef _LARGE_FILES */",
+    },
+    template = "libpkgconf/config.h.meson",
+)
+
+cc_library(
+    name = "libpkgconf",
+    srcs = [
+        "libpkgconf/argvsplit.c",
+        "libpkgconf/audit.c",
+        "libpkgconf/buffer.c",
+        "libpkgconf/bufferset.c",
+        "libpkgconf/bytecode.c",
+        "libpkgconf/bsdstubs.c",
+        "libpkgconf/cache.c",
+        "libpkgconf/client.c",
+        "libpkgconf/dependency.c",
+        "libpkgconf/fileio.c",
+        "libpkgconf/fragment.c",
+        "libpkgconf/license.c",
+        "libpkgconf/output.c",
+        "libpkgconf/parser.c",
+        "libpkgconf/path.c",
+        "libpkgconf/personality.c",
+        "libpkgconf/pkg.c",
+        "libpkgconf/queue.c",
+        "libpkgconf/tuple.c",
+        "libpkgconf/variable.c",
+        "libpkgconf/version.c",
+    ],
+    hdrs = glob(
+        ["libpkgconf/*.h"],
+        exclude = [
+            "libpkgconf/config.h.in",
+            "libpkgconf/config.h.meson",
+        ],
+    ) + [":config_h"],
+    copts = ["-std=c99"],
+    includes = [
+        ".",
+        "libpkgconf",
+    ],
+    local_defines = [
+        "HAVE_DECL_READLINKAT=1",
+        "LIBPKGCONF_EXPORT",
+        "PKGCONFIG_IS_STATIC",
+        "_ATFILE_SOURCE",
+        "_BSD_SOURCE",
+        "_DARWIN_C_SOURCE",
+        "_DEFAULT_SOURCE",
+        "_POSIX_C_SOURCE=200809L",
+        "_XOPEN_SOURCE=700",
+    ],
+)
+
+cc_binary(
+    name = "pkgconf",
+    srcs = [
+        "cli/core.c",
+        "cli/core.h",
+        "cli/getopt_long.c",
+        "cli/getopt_long.h",
+        "cli/main.c",
+        "cli/renderer-msvc.c",
+        "cli/renderer-msvc.h",
+    ],
+    copts = ["-std=c99"],
+    data = ["COPYING"],
+    includes = [
+        ".",
+        "cli",
+    ],
+    linkstatic = True,
+    local_defines = ["PKGCONFIG_IS_STATIC"],
+    deps = [":libpkgconf"],
+)

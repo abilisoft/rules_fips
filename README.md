@@ -151,12 +151,77 @@ native build changes into a Cargo or CMake output directory. See
 [Portability](docs/portability.md) for the tested AMD64/Arm64 and musl/glibc
 matrix.
 
+Build scripts that start CMake or Ninja must declare those executables through
+`cargo_build_script.tools` and use `$(execpath ...)`. `rules_rust` resolves that
+public location contract to one stable absolute execroot path before the build
+script starts, so the standard `cmake` crate may change directories safely:
+
+```starlark
+cargo_build_script(
+    name = "native_build_script",
+    # ...
+    build_script_env = {
+        "CMAKE": "$(execpath @rules_fips//fips/toolchains:hermetic_cmake)",
+        "NINJA": "$(execpath @rules_fips//fips/toolchains:hermetic_ninja)",
+    },
+    tools = [
+        "@rules_fips//fips/toolchains:hermetic_cmake",
+        "@rules_fips//fips/toolchains:hermetic_ninja",
+    ],
+)
+```
+
+Do not pass these tools through `$(CMAKE)`, `$(NINJA)`, or a
+`/proc/self/cwd/...` value. Those paths are relative to the process's current
+directory and are not valid after a nested build system changes it.
+
+Build scripts that use `pkg-config` receive their target SDK through an
+explicit provider. The SDK target owns the `.pc` files, headers, libraries,
+and the execution-configured pkg-config executable; the Rust adapter adds that
+complete closure to the build-script action and disables host search paths:
+
+```starlark
+load(
+    "@rules_fips//fips:defs.bzl",
+    "fips_rust_toolchain",
+    "target_pkg_config_sdk",
+)
+
+target_pkg_config_sdk(
+    name = "fontconfig_sdk",
+    libdirs = ["lib/pkgconfig"],
+    sdk_files = [":fontconfig_sysroot"],
+    sysroot_marker = "fontconfig-sysroot/lib/pkgconfig/fontconfig.pc",
+    sysroot_marker_relative_path = "lib/pkgconfig/fontconfig.pc",
+)
+
+fips_rust_toolchain(
+    name = "rust_toolchain",
+    # Normal rules_rust and platform attributes omitted.
+    pkg_config_sdk = ":fontconfig_sdk",
+)
+```
+
+For a rule-produced SDK, set `sysroot` to a target whose `DefaultInfo` exposes
+exactly one declared directory artifact and omit both marker attributes. The
+marker form above exists for checked-in file trees, where Bazel has no directory
+artifact to carry. The two forms are mutually exclusive.
+
+The default executable is pristine pkgconf 3.0.4, built with the selected
+declared GNU execution C/C++ toolchain and launched with its declared loader
+and runtime files. `pkg_config` may instead name another executable target;
+it remains an execution-configured declared input. `PKG_CONFIG`,
+`PKG_CONFIG_SYSROOT_DIR`, and `PKG_CONFIG_LIBDIR` are anchored before the build
+script starts and remain valid after nested CMake or Cargo directory changes.
+`PATH`, `PKG_CONFIG_PATH`, and pkgconf's system include/library paths are empty,
+so an incomplete SDK fails instead of consulting the worker.
+
 ## Hermeticity and portability
 
 Sources, compilers, sysroots, build tools, and licenses are fetched by exact
 URL and SHA-256. Build actions use declared inputs; the default BuildBuddy
 execution image is digest-pinned and has action networking disabled.
-Starlark invokes a small statically compiled driver for the filesystem/process
+Starlark invokes small statically compiled drivers for the filesystem/process
 operations Bazel cannot express. The driver starts upstream OpenSSL Configure,
 declared Perl, declared Make, and the declared shell directly; it never emits
 or evaluates repository-authored shell. There are no source patches.

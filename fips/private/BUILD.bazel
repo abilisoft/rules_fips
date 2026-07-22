@@ -4,7 +4,9 @@ package(default_visibility = ["//fips:__subpackages__"])
 
 exports_files([
     "busybox.BUILD.bazel",
+    "configure_header.bzl",
     "make.BUILD.bazel",
+    "pkgconf.BUILD.bazel",
     "ssp_local.c",
 ])
 

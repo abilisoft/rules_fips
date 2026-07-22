@@ -1,0 +1,5 @@
+Name: Fontconfig
+Description: Declared pkg-config metadata fixture for rules_fips
+Version: 2.15.0
+Libs:
+Cflags:

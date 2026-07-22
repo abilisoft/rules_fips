@@ -4,6 +4,34 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.4 - 2026-07-22
+
+### Added
+
+- `target_pkg_config_sdk` binds a declared target SDK to an execution-configured
+  pkgconf tool and carries the complete closure into Cargo build-script actions.
+- The normalized OpenSSL SDK preserves upstream-installed pkg-config metadata.
+- Cross-platform regression coverage builds unmodified
+  `yeslogic-fontconfig-sys` 6.0.1 for AMD64 and Arm64 musl from an AMD64 GNU
+  execution platform.
+
+### Fixed
+
+- C/C++ tools, sysroots, compiler runtimes, CMake, Ninja, and pkgconf remain
+  reachable after nested native build systems change directories, without
+  publishing `/proc/self/cwd` paths or consulting a host `PATH`.
+- C/C++ action configuration now uses declared tool files and the canonical
+  compile, executable-link, dynamic-library, archive, objcopy, and strip action
+  groups. Static executable policy never leaks into shared-library actions.
+- Tree-artifact staging consumes Bazel-expanded declared children, so sandbox
+  symlinks are materialized safely without accepting undeclared filesystem
+  inputs.
+- OpenSSL's own installed `.pc` files flow into normalized SDK TreeArtifacts;
+  no repository-authored metadata substitutes for producer output.
+- Strict Rust consumers no longer receive toolchain-authored unused-link-flag
+  warnings, and CMake selects only the declared Ninja executable with an empty
+  host search path.
+
 ## 0.3.3 - 2026-07-22
 
 ### Fixed

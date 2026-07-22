@@ -2,24 +2,28 @@
 
 load(
     "@rules_cc//cc:action_names.bzl",
-    "CPP_COMPILE_ACTION_NAME",
-    "CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME",
-    "CPP_LINK_EXECUTABLE_ACTION_NAME",
+    "ALL_CC_COMPILE_ACTION_NAMES",
+    "ALL_CPP_COMPILE_ACTION_NAMES",
+    "CC_LINK_EXECUTABLE_ACTION_NAMES",
+    "CPP20_MODULE_CODEGEN_ACTION_NAME",
+    "CPP20_MODULE_COMPILE_ACTION_NAME",
+    "CPP_LINK_STATIC_LIBRARY_ACTION_NAME",
     "C_COMPILE_ACTION_NAME",
+    "DYNAMIC_LIBRARY_LINK_ACTION_NAMES",
+    "OBJ_COPY_ACTION_NAME",
+    "STRIP_ACTION_NAME",
 )
 load(
     "@rules_cc//cc:cc_toolchain_config_lib.bzl",
+    "action_config",
     "feature",
     "flag_group",
     "flag_set",
-    "tool_path",
+    "tool",
     "with_feature_set",
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
-
-def _execroot_path(file):
-    return "/proc/self/cwd/" + file.path
 
 def _bootlin_toolchain_paths(marker, target_triplet, gcc_version):
     suffix = "/{}/sysroot/usr/include/stdio.h".format(target_triplet)
@@ -41,12 +45,12 @@ def _clang_resource_root(marker):
 
 def _fips_bootlin_cc_toolchain_config_impl(ctx):
     paths = _bootlin_toolchain_paths(ctx.file.sysroot_marker, ctx.attr.target_triplet, ctx.attr.gcc_version)
-    action_sysroot = "/proc/self/cwd/" + paths.sysroot
-    action_gcc_root = "/proc/self/cwd/" + paths.gcc_root
-    action_gcc_lib = "/proc/self/cwd/" + paths.gcc_lib
-    action_cxx_root = "/proc/self/cwd/" + paths.cxx_root
+    action_sysroot = paths.sysroot
+    action_gcc_root = paths.gcc_root
+    action_gcc_lib = paths.gcc_lib
+    action_cxx_root = paths.cxx_root
     resource_root = _clang_resource_root(ctx.file.resource_marker)
-    resource_dir = "/proc/self/cwd/" + resource_root + "/usr/lib/llvm22/lib/clang/22"
+    resource_dir = resource_root + "/usr/lib/llvm22/lib/clang/22"
     compile_flags = [
         "--target=" + ctx.attr.target_triplet,
         "--sysroot=" + action_sysroot,
@@ -79,13 +83,26 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
         "--rtlib=libgcc",
         "--unwindlib=libgcc",
         "-Wno-unused-command-line-argument",
-        "-fuse-ld=" + _execroot_path(ctx.file.ld),
+        # The declared ld.lld launcher is a sibling of Clang. The launcher
+        # supplies -ccc-install-dir, so Clang resolves this name without PATH
+        # lookup or an execroot-dependent path.
+        "-fuse-ld=lld",
         "-L" + action_gcc_lib,
         "-Wl,-z,relro,-z,now",
-        _execroot_path(ctx.file.compiler_runtime),
+        ctx.file.compiler_runtime.path,
     ]
     if ctx.file.ssp_runtime:
-        link_flags.append("-L/proc/self/cwd/" + ctx.file.ssp_runtime.dirname)
+        link_flags.append("-L" + ctx.file.ssp_runtime.dirname)
+    compiler_actions = ALL_CC_COMPILE_ACTION_NAMES + [
+        CPP20_MODULE_COMPILE_ACTION_NAME,
+        CPP20_MODULE_CODEGEN_ACTION_NAME,
+    ]
+    cxx_compile_actions = ALL_CPP_COMPILE_ACTION_NAMES + [
+        CPP20_MODULE_COMPILE_ACTION_NAME,
+        CPP20_MODULE_CODEGEN_ACTION_NAME,
+    ]
+    link_actions = CC_LINK_EXECUTABLE_ACTION_NAMES + DYNAMIC_LIBRARY_LINK_ACTION_NAMES
+    compile_and_link_actions = compiler_actions + CC_LINK_EXECUTABLE_ACTION_NAMES + DYNAMIC_LIBRARY_LINK_ACTION_NAMES
     features = [
         feature(name = "supports_pic", enabled = True),
         feature(name = "supports_start_end_lib", enabled = True),
@@ -93,12 +110,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_compile_flags",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [
-                    C_COMPILE_ACTION_NAME,
-                    CPP_COMPILE_ACTION_NAME,
-                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
-                    CPP_LINK_EXECUTABLE_ACTION_NAME,
-                ],
+                actions = compile_and_link_actions,
                 flag_groups = [flag_group(flags = compile_flags)],
             )],
         ),
@@ -106,7 +118,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_cxx_compile_flags",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [CPP_COMPILE_ACTION_NAME],
+                actions = cxx_compile_actions,
                 flag_groups = [flag_group(flags = cxx_compile_flags)],
             )],
         ),
@@ -114,10 +126,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_cxx_link_driver_flags",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [
-                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
-                    CPP_LINK_EXECUTABLE_ACTION_NAME,
-                ],
+                actions = link_actions,
                 flag_groups = [flag_group(flags = cxx_driver_flags)],
             )],
         ),
@@ -125,10 +134,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_link_flags",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [
-                    CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME,
-                    CPP_LINK_EXECUTABLE_ACTION_NAME,
-                ],
+                actions = link_actions,
                 flag_groups = [flag_group(flags = link_flags)],
             )],
         ),
@@ -136,7 +142,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_shared_runtime",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [CPP_LINK_DYNAMIC_LIBRARY_ACTION_NAME],
+                actions = DYNAMIC_LIBRARY_LINK_ACTION_NAMES,
                 flag_groups = [flag_group(flags = [
                     "-static-libgcc",
                     "-static-libstdc++",
@@ -150,7 +156,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             name = "rules_fips_static_executables",
             enabled = True,
             flag_sets = [flag_set(
-                actions = [CPP_LINK_EXECUTABLE_ACTION_NAME],
+                actions = CC_LINK_EXECUTABLE_ACTION_NAMES,
                 flag_groups = [flag_group(flags = ["-static"])],
                 with_features = [with_feature_set(not_features = ["rules_fips_dynamic_executable"])],
             )],
@@ -162,7 +168,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
                 name = "rules_fips_dynamic_executables",
                 enabled = True,
                 flag_sets = [flag_set(
-                    actions = [CPP_LINK_EXECUTABLE_ACTION_NAME],
+                    actions = CC_LINK_EXECUTABLE_ACTION_NAMES,
                     flag_groups = [flag_group(flags = [
                         "-static-libgcc",
                         "-static-libstdc++",
@@ -182,9 +188,89 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             ),
             feature(name = "rules_fips_dynamic_executable"),
         ])
+
+    compile_implies = [
+        "legacy_compile_flags",
+        "user_compile_flags",
+        "sysroot",
+        "unfiltered_compile_flags",
+        "compiler_input_flags",
+        "compiler_output_flags",
+    ]
+    executable_link_implies = [
+        "strip_debug_symbols",
+        "linkstamps",
+        "output_execpath_flags",
+        "runtime_library_search_directories",
+        "library_search_directories",
+        "libraries_to_link",
+        "force_pic_flags",
+        "user_link_flags",
+        "legacy_link_flags",
+        "linker_param_file",
+        "fission_support",
+        "sysroot",
+    ]
+    dynamic_link_implies = [
+        "build_interface_libraries",
+        "dynamic_library_linker_tool",
+        "strip_debug_symbols",
+        "shared_flag",
+        "linkstamps",
+        "output_execpath_flags",
+        "runtime_library_search_directories",
+        "library_search_directories",
+        "libraries_to_link",
+        "user_link_flags",
+        "legacy_link_flags",
+        "linker_param_file",
+        "fission_support",
+        "sysroot",
+    ]
+    action_configs = [
+        action_config(
+            action_name = action_name,
+            implies = compile_implies,
+            tools = [tool(tool = ctx.file.clang)],
+        )
+        for action_name in compiler_actions
+    ] + [
+        action_config(
+            action_name = action_name,
+            implies = executable_link_implies,
+            tools = [tool(tool = ctx.file.clang)],
+        )
+        for action_name in CC_LINK_EXECUTABLE_ACTION_NAMES
+    ] + [
+        action_config(
+            action_name = action_name,
+            implies = dynamic_link_implies,
+            tools = [tool(tool = ctx.file.clang)],
+        )
+        for action_name in DYNAMIC_LIBRARY_LINK_ACTION_NAMES
+    ] + [
+        action_config(
+            action_name = CPP_LINK_STATIC_LIBRARY_ACTION_NAME,
+            implies = ["archiver_flags", "linker_param_file"],
+            tools = [tool(tool = ctx.file.ar)],
+        ),
+        action_config(
+            action_name = OBJ_COPY_ACTION_NAME,
+            tools = [tool(tool = ctx.file.objcopy)],
+        ),
+        action_config(
+            action_name = STRIP_ACTION_NAME,
+            flag_sets = [flag_set(flag_groups = [
+                flag_group(flags = ["-S", "-p", "-o", "%{output_file}"]),
+                flag_group(iterate_over = "stripopts", flags = ["%{stripopts}"]),
+                flag_group(flags = ["%{input_file}"]),
+            ])],
+            tools = [tool(tool = ctx.file.strip)],
+        ),
+    ]
     return [cc_common.create_cc_toolchain_config_info(
         ctx = ctx,
-        action_configs = [],
+        action_configs = action_configs,
         features = features,
         cxx_builtin_include_directories = [
             resource_dir + "/include",
@@ -201,16 +287,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
         compiler = "clang",
         abi_version = ctx.attr.abi_version,
         abi_libc_version = ctx.attr.abi_libc_version,
-        tool_paths = [
-            tool_path(name = "ar", path = _execroot_path(ctx.file.ar)),
-            tool_path(name = "cpp", path = _execroot_path(ctx.file.clang)),
-            tool_path(name = "gcc", path = _execroot_path(ctx.file.clang)),
-            tool_path(name = "gcov", path = _execroot_path(ctx.file.nm)),
-            tool_path(name = "ld", path = _execroot_path(ctx.file.ld)),
-            tool_path(name = "nm", path = _execroot_path(ctx.file.nm)),
-            tool_path(name = "objdump", path = _execroot_path(ctx.file.objdump)),
-            tool_path(name = "strip", path = _execroot_path(ctx.file.strip)),
-        ],
+        tool_paths = [],
     )]
 
 fips_bootlin_cc_toolchain_config = rule(
@@ -227,6 +304,7 @@ fips_bootlin_cc_toolchain_config = rule(
         "ld": attr.label(allow_single_file = True, mandatory = True),
         "libc": attr.string(mandatory = True),
         "nm": attr.label(allow_single_file = True, mandatory = True),
+        "objcopy": attr.label(allow_single_file = True, mandatory = True),
         "objdump": attr.label(allow_single_file = True, mandatory = True),
         "resource_marker": attr.label(allow_single_file = True, mandatory = True),
         "strip": attr.label(allow_single_file = True, mandatory = True),

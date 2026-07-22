@@ -150,6 +150,26 @@ jobs:
           //test/toolchain:cc_test
           //test/toolchain:cxx_test
           //test/toolchain:rust_binary_test
+      - name: Build a standard pkg-config Cargo consumer
+        if: matrix.platform == 'linux_amd64' || matrix.platform == 'linux_arm64'
+        run: >-
+          bazel build
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=//test/pkgconfig:${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_amd64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/pkgconfig:yeslogic_fontconfig_sys
+      - name: Check the pkg-config SDK in the local sandbox
+        if: matrix.platform == 'linux_amd64' || matrix.platform == 'linux_arm64'
+        run: >-
+          bazel build
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=//test/pkgconfig:${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_amd64
+          --modify_execution_info='^PkgConfigSdkCheck$=+no-cache,^PkgConfigSdkCheck$=+no-remote-exec'
+          --strategy=PkgConfigSdkCheck=sandboxed
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/pkgconfig:fontconfig_sdk_check
 
   native-arm64-consumers:
     name: Toolchain consumers (native Arm64, ${{ matrix.platform }})
@@ -206,3 +226,4 @@ jobs:
           --config=${{ matrix.platform }}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //examples:openssl_fips_sdk
+          //test/pkgconfig:openssl_sdk_check

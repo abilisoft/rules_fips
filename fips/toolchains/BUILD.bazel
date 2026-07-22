@@ -232,6 +232,11 @@ alias(
     }),
 )
 
+alias(
+    name = "pkgconf_exec",
+    actual = "@fips_pkgconf_3_0_4//:pkgconf",
+)
+
 filegroup(
     name = "empty_exec_support",
 )
@@ -245,21 +250,33 @@ alias(
 )
 
 hermetic_runtime_tool(
-    name = "hermetic_cmake",
-    data = ":cmake_exec_data",
-    launcher = ":runtime_launcher",
-    program = ":cmake_exec",
-    runtime = ":execution_glibc",
-    variable = "CMAKE",
-)
-
-hermetic_runtime_tool(
-    name = "hermetic_ninja",
+    name = "ninja",
     data = ":ninja_exec",
     launcher = ":runtime_launcher",
     program = ":ninja_exec",
     runtime = ":execution_glibc",
-    variable = "NINJA",
+)
+
+alias(
+    name = "hermetic_ninja",
+    actual = ":ninja",
+)
+
+hermetic_runtime_tool(
+    name = "hermetic_cmake",
+    data = ":cmake_exec_data",
+    launcher = ":runtime_launcher",
+    path_tools = [":ninja"],
+    program = ":cmake_exec",
+    runtime = ":execution_glibc",
+)
+
+hermetic_runtime_tool(
+    name = "pkgconf",
+    data = ":pkgconf_exec",
+    launcher = ":runtime_launcher",
+    program = ":pkgconf_exec",
+    runtime = ":execution_glibc",
 )
 
 hermetic_musl_toolchain(
@@ -361,6 +378,7 @@ fips_bootlin_cc_toolchain_config(
     ld = ":llvm_musl/bin/ld.lld",
     libc = "musl",
     nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
     objdump = ":llvm_musl/bin/objdump",
     resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_amd64",
@@ -382,6 +400,7 @@ fips_glibc_cc_toolchain_config(
     ld = ":llvm_musl/bin/ld.lld",
     libc = "glibc",
     nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
     objdump = ":llvm_musl/bin/objdump",
     resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_amd64",
@@ -403,6 +422,7 @@ fips_glibc_cc_toolchain_config(
     ld = ":llvm_musl/bin/ld.lld",
     libc = "glibc",
     nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
     objdump = ":llvm_musl/bin/objdump",
     resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_arm64_cross",
@@ -424,6 +444,7 @@ fips_glibc_cc_toolchain_config(
     ld = ":llvm_musl_arm64_native/bin/ld.lld",
     libc = "glibc",
     nm = ":llvm_musl_arm64_native/bin/nm",
+    objcopy = ":llvm_musl_arm64_native/bin/objcopy",
     objdump = ":llvm_musl_arm64_native/bin/objdump",
     resource_marker = "@fips_llvm_musl_arm64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_arm64_native",
@@ -445,6 +466,7 @@ fips_bootlin_cc_toolchain_config(
     ld = ":llvm_musl/bin/ld.lld",
     libc = "musl",
     nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
     objdump = ":llvm_musl/bin/objdump",
     resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_arm64_cross",
@@ -466,6 +488,7 @@ fips_bootlin_cc_toolchain_config(
     ld = ":llvm_musl_arm64_native/bin/ld.lld",
     libc = "musl",
     nm = ":llvm_musl_arm64_native/bin/nm",
+    objcopy = ":llvm_musl_arm64_native/bin/objcopy",
     objdump = ":llvm_musl_arm64_native/bin/objdump",
     resource_marker = "@fips_llvm_musl_arm64//:usr/bin/clang",
     ssp_runtime = ":compiler_runtime_arm64_native",

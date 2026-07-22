@@ -101,7 +101,7 @@ def _execution_static_go_tool_impl(ctx):
     qemu_files = ctx.attr.qemu_aarch64[DefaultInfo].files.to_list()
     if len(qemu_files) > 1:
         fail("execution QEMU support must expose at most one executable")
-    qemu = "/proc/self/cwd/" + qemu_files[0].path if qemu_files else ""
+    qemu = qemu_files[0].path if qemu_files else ""
     executable = ctx.actions.declare_file(ctx.label.name)
     go_cache = ctx.actions.declare_directory(ctx.label.name + "_go_cache")
     go_path = ctx.actions.declare_directory(ctx.label.name + "_go_path")
@@ -191,10 +191,25 @@ def _crypto_sdk_impl(ctx):
         for entry in platform.libc_runtime_entries
         for value in [entry.file.path, entry.destination]
     ]
+    header_arguments = ctx.actions.args()
+    header_arguments.add_all(
+        "--declared-headers",
+        [crypto.include_dir],
+        expand_directories = True,
+        omit_if_empty = False,
+    )
+    pkg_config_arguments = ctx.actions.args()
+    pkg_config_arguments.add_all(
+        "--declared-pkg-config",
+        [crypto.pkg_config_dir],
+        expand_directories = True,
+        omit_if_empty = False,
+    )
     ctx.actions.run(
         arguments = [
             "stage-crypto-sdk",
             crypto.include_dir.path,
+            crypto.pkg_config_dir.path,
             libcrypto.path,
             libssl.path,
             artifacts["openssl"].path,
@@ -203,7 +218,7 @@ def _crypto_sdk_impl(ctx):
             artifacts["activation"].path,
             sysroot.path,
             libc_runtime.path,
-        ] + runtime_arguments,
+        ] + runtime_arguments + [pkg_config_arguments, header_arguments],
         env = {
             "LANG": "C",
             "LC_ALL": "C",
@@ -214,6 +229,7 @@ def _crypto_sdk_impl(ctx):
         inputs = depset(
             direct = [
                 crypto.include_dir,
+                crypto.pkg_config_dir,
                 libcrypto,
                 libssl,
                 artifacts["activation"],

@@ -1,4 +1,9 @@
-load("@rules_fips//fips:defs.bzl", "fips_rust_toolchain", "openssl_fips_sdk")
+load(
+    "@rules_fips//fips:defs.bzl",
+    "fips_rust_toolchain",
+    "openssl_fips_sdk",
+    "target_pkg_config_sdk",
+)
 load(":smoke.bzl", "fake_rust_toolchain", "rules_fips_smoke")
 
 rules_fips_smoke(name = "smoke")
@@ -35,6 +40,14 @@ fake_rust_toolchain(
     files = ":rustc_lib",
 )
 
+target_pkg_config_sdk(
+    name = "external_pkg_config_sdk",
+    libdirs = ["usr/lib/pkgconfig"],
+    sdk_files = ["pkgconfig-sdk/usr/lib/pkgconfig/external.pc"],
+    sysroot_marker = "pkgconfig-sdk/usr/lib/pkgconfig/external.pc",
+    sysroot_marker_relative_path = "usr/lib/pkgconfig/external.pc",
+)
+
 fips_rust_toolchain(
     name = "external_rust_toolchain",
     exec_compatible_with = [
@@ -45,6 +58,7 @@ fips_rust_toolchain(
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
+    pkg_config_sdk = ":external_pkg_config_sdk",
     toolchain = ":fake_rust_toolchain",
     tools_repository = "",
 )

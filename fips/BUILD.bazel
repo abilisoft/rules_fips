@@ -10,6 +10,7 @@ exports_files([
     "defs.bzl",
     "extensions.bzl",
     "metadata.bzl",
+    "pkg_config.bzl",
     "providers.bzl",
     "repositories.bzl",
     "rust_adapter.bzl",

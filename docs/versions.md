@@ -16,7 +16,11 @@ Execution tools and target sysroots are separate internal pins in
 | Input | Current pin |
 | --- | --- |
 | Bazel | 9.2.0 |
+| Buildifier | 8.5.1 via `buildifier_prebuilt` 8.5.1.3 |
+| Bazel platforms | 1.1.0 |
+| C/C++ rules | `rules_cc` 0.2.22 |
 | Clang, LLD, LLVM tools, resource headers, and compiler-rt | 22.1.8 |
+| LLVM toolchain support | `toolchains_llvm` 1.8.0 |
 | LLVM tool execution libc | Alpine musl 1.2.6-r2 |
 | musl target sysroot | Bootlin 2025.08, musl 1.2.5, GCC runtime 14.3.0 |
 | glibc target sysroot | Bootlin 2022.08, glibc 2.35, GCC runtime 11.3.0 |
@@ -25,6 +29,8 @@ Execution tools and target sysroots are separate internal pins in
 | BusyBox | 1.37.0-r31 |
 | CMake | 4.4.0 |
 | Ninja | 1.13.2 |
+| pkg-config implementation | pkgconf 3.0.4 |
+| Rust rules and compiler | `rules_rust` 0.71.3 and Rust 1.97.1 |
 | Rust execution zlib | 1.3.2, built from source |
 | Perl | 5.40.1 via `rules_perl` 1.1.2 |
 | Arm64 user-mode emulator | QEMU 11.0.2-r1 |

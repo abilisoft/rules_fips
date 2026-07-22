@@ -1,6 +1,6 @@
 module(
     name = "rules_fips",
-    version = "0.3.3",
+    version = "0.3.4",
     bazel_compatibility = [">=9.2.0"],
 )
 
@@ -135,6 +135,24 @@ use_repo(
     "rust_linux_x86_64_exec__x86_64-unknown-linux-gnu__stable_tools",
 )
 
+fontconfig_crates = use_extension(
+    "@rules_rust//crate_universe:extensions.bzl",
+    "crate",
+    dev_dependency = True,
+)
+fontconfig_crates.spec(
+    package = "yeslogic-fontconfig-sys",
+    version = "=6.0.1",
+)
+fontconfig_crates.from_specs(name = "fontconfig_crates")
+use_repo(fontconfig_crates, "fontconfig_crates")
+
+register_toolchains(
+    "//test/pkgconfig:rust_linux_x86_64__aarch64-unknown-linux-musl__pkg_config",
+    "//test/pkgconfig:rust_linux_x86_64__x86_64-unknown-linux-musl__pkg_config",
+    dev_dependency = True,
+)
+
 register_toolchains(
     "//fips/toolchains:rust_linux_aarch64__aarch64-unknown-linux-gnu__stable",
     "//fips/toolchains:rust_linux_aarch64__aarch64-unknown-linux-musl__stable",
@@ -217,6 +235,15 @@ exports_files(["ninja"])
     sha256 = "fd2cacc8050a7f12a16a2e48f9e06fca5c14fc4c2bee2babb67b58be17a607fc",
     type = "zip",
     urls = ["https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux-aarch64.zip"],
+)
+
+verified_archive(
+    name = "fips_pkgconf_3_0_4",
+    build_file = "//fips/private:pkgconf.BUILD.bazel",
+    sha256 = "91ce346b47f46b87d680c6928e6c43240b9cdc7a31afbea19f2298de4dbe266d",
+    strip_prefix = "pkgconf-3.0.4",
+    type = "tar.xz",
+    urls = ["https://github.com/pkgconf/pkgconf/releases/download/pkgconf-3.0.4/pkgconf-3.0.4.tar.xz"],
 )
 
 verified_archive(
