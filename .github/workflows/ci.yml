@@ -56,6 +56,7 @@ jobs:
         run: >-
           bazel build --nobuild
           ${BAZEL_REMOTE_FALLBACK}
+          --extra_execution_platforms=@rules_fips//fips/platforms:linux_execution_amd64,@rules_fips//fips/platforms:linux_amd64
           --platforms=@rules_fips//fips/platforms:linux_amd64
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //:external_sdk
@@ -302,7 +303,7 @@ jobs:
           bazel test
           ${BAZEL_REMOTE_FALLBACK}
           --config=${{ matrix.platform }}
-          --extra_execution_platforms=//fips/platforms:linux_execution_${{ matrix.arch }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_${{ matrix.arch }},//fips/platforms:${{ matrix.platform }}
           --modify_execution_info='^TestRunner$=+no-remote-exec'
           --nocache_test_results
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
@@ -313,7 +314,7 @@ jobs:
           bazel test
           ${BAZEL_REMOTE_FALLBACK}
           --config=${{ matrix.platform }}
-          --extra_execution_platforms=//fips/platforms:linux_execution_${{ matrix.arch }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_${{ matrix.arch }},//fips/platforms:${{ matrix.platform }}
           --modify_execution_info='^TestRunner$=+no-remote-exec'
           --nocache_test_results
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
