@@ -31,3 +31,20 @@ def _rules_fips_smoke_impl(ctx):
 rules_fips_smoke = rule(
     implementation = _rules_fips_smoke_impl,
 )
+
+def _fake_rust_toolchain_impl(ctx):
+    return [
+        platform_common.ToolchainInfo(
+            all_files = ctx.attr.files[DefaultInfo].files,
+            env = {},
+            extra_rustc_flags_for_crate_types = {},
+        ),
+        platform_common.TemplateVariableInfo({}),
+    ]
+
+fake_rust_toolchain = rule(
+    implementation = _fake_rust_toolchain_impl,
+    attrs = {
+        "files": attr.label(mandatory = True),
+    },
+)

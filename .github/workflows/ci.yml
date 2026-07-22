@@ -59,6 +59,7 @@ jobs:
           --platforms=@rules_fips//fips/platforms:linux_amd64
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //:external_sdk
+          //:external_rust_toolchain_impl
       - name: Build exported SDK execution helpers on GNU Linux
         working-directory: e2e/bcr
         run: >-

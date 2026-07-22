@@ -19,6 +19,7 @@ fn flags(name: &str) -> Vec<String> {
 }
 
 fn main() {
+    let original_directory = env::current_dir().expect("build-script working directory is required");
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is required"));
     let source = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required"))
         .join("native.c");
@@ -34,6 +35,7 @@ fn main() {
         "-o".to_owned(),
         object.display().to_string(),
     ]);
+    env::set_current_dir(&output).expect("change to the native build directory");
     run(&compiler, &compile_arguments);
 
     let mut archive_arguments = flags("ARFLAGS");
@@ -43,6 +45,7 @@ fn main() {
         object.display().to_string(),
     ]);
     run(&archiver, &archive_arguments);
+    env::set_current_dir(original_directory).expect("restore the build-script working directory");
 
     let cmake = env::var("CMAKE").expect("hermetic CMAKE is required");
     let ninja = env::var("NINJA").expect("hermetic NINJA is required");

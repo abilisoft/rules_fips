@@ -1,9 +1,50 @@
-load("@rules_fips//fips:defs.bzl", "openssl_fips_sdk")
-load(":smoke.bzl", "rules_fips_smoke")
+load("@rules_fips//fips:defs.bzl", "fips_rust_toolchain", "openssl_fips_sdk")
+load(":smoke.bzl", "fake_rust_toolchain", "rules_fips_smoke")
 
 rules_fips_smoke(name = "smoke")
 
 openssl_fips_sdk(
     name = "external_sdk",
     tags = ["manual"],
+)
+
+[
+    alias(
+        name = tool,
+        actual = "@rules_fips//fips/toolchains:runtime_launcher",
+    )
+    for tool in [
+        "cargo",
+        "clippy_driver_bin",
+        "llvm_cov_bin",
+        "llvm_profdata_bin",
+        "rust-objcopy",
+        "rustc",
+        "rustdoc",
+        "rustfmt_bin",
+    ]
+]
+
+filegroup(
+    name = "rustc_lib",
+    srcs = ["@rules_fips//fips/toolchains:runtime_launcher"],
+)
+
+fake_rust_toolchain(
+    name = "fake_rust_toolchain",
+    files = ":rustc_lib",
+)
+
+fips_rust_toolchain(
+    name = "external_rust_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":fake_rust_toolchain",
+    tools_repository = "",
 )
