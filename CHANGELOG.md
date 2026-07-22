@@ -4,6 +4,33 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.5 - 2026-07-22
+
+### Added
+
+- `hermetic_target_runtime_tool` and `hermetic_target_runtime_test` wrap
+  target-configured executables with a declared loader/runtime closure or
+  verify a genuinely static ELF before direct execution.
+- Runtime tools accept declared fixed arguments and additive `PATH` tools,
+  including label-backed files carried through runfiles.
+- `fips_rust_toolchain(static_crt = False)` removes the adapter's static CRT
+  policy and selects a non-self-contained target runtime explicitly. A
+  defaulted CRT constraint keeps static and dynamic registered toolchains
+  mutually exclusive.
+
+### Fixed
+
+- Supplemental runtime libraries are projected as individual declared files;
+  selecting one file can no longer expose undeclared siblings from its source
+  repository directory.
+- Runtime launchers resolve a basename invoked through their closed `PATH` to
+  exactly one declared executable and adjacent sidecar.
+- The stock CMake closure includes declared Ninja, POSIX, and Perl tools for
+  nested native builds without a host `PATH` fallback.
+- Static-musl and dynamic-glibc Rust tests execute through target-configured
+  launchers on AMD64 and native Arm64. Static remains the default, and shared
+  library links never inherit executable CRT policy.
+
 ## 0.3.4 - 2026-07-22
 
 ### Added

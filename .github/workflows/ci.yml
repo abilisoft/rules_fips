@@ -150,6 +150,24 @@ jobs:
           //test/toolchain:cc_test
           //test/toolchain:cxx_test
           //test/toolchain:rust_binary_test
+      - name: Execute a static musl Rust test through its declared launcher
+        if: matrix.platform == 'linux_amd64'
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --config=${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_amd64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/toolchain:rust_static_runtime_test
+      - name: Execute a dynamic glibc Rust test through its declared launcher
+        if: matrix.platform == 'linux_amd64_glibc'
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=//test/toolchain:linux_amd64_glibc_dynamic
+          --extra_execution_platforms=//fips/platforms:linux_execution_amd64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/toolchain:rust_dynamic_runtime_test
       - name: Build a standard pkg-config Cargo consumer
         if: matrix.platform == 'linux_amd64' || matrix.platform == 'linux_arm64'
         run: >-
@@ -200,6 +218,24 @@ jobs:
           //test/toolchain:cc_test
           //test/toolchain:cxx_test
           //test/toolchain:rust_binary_test
+      - name: Execute a static musl Rust test through its declared launcher
+        if: matrix.platform == 'linux_arm64'
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --config=${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_arm64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/toolchain:rust_static_runtime_test
+      - name: Execute a dynamic glibc Rust test through its declared launcher
+        if: matrix.platform == 'linux_arm64_glibc'
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --platforms=//test/toolchain:linux_arm64_glibc_dynamic
+          --extra_execution_platforms=//fips/platforms:linux_execution_arm64
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          //test/toolchain:rust_dynamic_runtime_test
 
   distributions:
     name: SDK (${{ matrix.platform }})

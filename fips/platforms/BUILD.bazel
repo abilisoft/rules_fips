@@ -12,6 +12,21 @@ constraint_value(
     constraint_setting = ":libc_abi",
 )
 
+constraint_setting(
+    name = "rust_crt",
+    default_constraint_value = ":rust_static_crt",
+)
+
+constraint_value(
+    name = "rust_static_crt",
+    constraint_setting = ":rust_crt",
+)
+
+constraint_value(
+    name = "rust_dynamic_crt",
+    constraint_setting = ":rust_crt",
+)
+
 constraint_setting(name = "crypto_runtime_abi")
 
 constraint_value(

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -18,6 +19,9 @@ const (
 	loaderVariable          = "RULES_FIPS_RUNTIME_LOADER"
 	libraryVariable         = "RULES_FIPS_RUNTIME_LIBRARY_PATH"
 	programVariable         = "RULES_FIPS_RUNTIME_PROGRAM"
+	staticProgramVariable   = "RULES_FIPS_RUNTIME_STATIC_PROGRAM"
+	fixedArgCountVariable   = "RULES_FIPS_RUNTIME_FIXED_ARG_COUNT"
+	fixedArgPrefix          = "RULES_FIPS_RUNTIME_FIXED_ARG_"
 	argv0Variable           = "RULES_FIPS_RUNTIME_ARGV0"
 	inhibitCacheVariable    = "RULES_FIPS_RUNTIME_INHIBIT_CACHE"
 	pathEnvironmentVariable = "RULES_FIPS_RUNTIME_PATH_ENVIRONMENT"
@@ -36,6 +40,7 @@ type command struct {
 	environment  []string
 	libraryPaths []string
 	program      string
+	fullyStatic  bool
 }
 
 func main() {
@@ -44,7 +49,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "runtime launcher: %v\n", err)
 		os.Exit(78)
 	}
-	if err := validateDeclaredClosure(prepared.program, prepared.libraryPaths); err != nil {
+	if prepared.fullyStatic {
+		err = validateStaticProgram(prepared.program)
+	} else {
+		err = validateDeclaredClosure(prepared.program, prepared.libraryPaths)
+	}
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "runtime launcher: %v\n", err)
 		os.Exit(78)
 	}
@@ -63,11 +73,37 @@ func prepare(arguments, environment []string) (command, error) {
 	if err != nil {
 		return command{}, err
 	}
-	loader, err := executableFromEnvironment(loaderVariable)
+	fullyStatic, err := booleanEnvironment(staticProgramVariable)
 	if err != nil {
 		return command{}, err
 	}
 	defaultProgram, err := executableFromEnvironment(programVariable)
+	if err != nil {
+		return command{}, err
+	}
+	fixedArguments, err := declaredFixedArguments(originalWorkingDirectory)
+	if err != nil {
+		return command{}, err
+	}
+	environment = withEnvironment(environment, programVariable, defaultProgram)
+	environment, err = resolvePathEnvironment(environment)
+	if err != nil {
+		return command{}, err
+	}
+	if fullyStatic {
+		directArguments := append([]string{defaultProgram}, fixedArguments...)
+		for _, argument := range arguments {
+			directArguments = append(directArguments, resolveArgument(argument, originalWorkingDirectory))
+		}
+		return command{
+			executable:  defaultProgram,
+			arguments:   directArguments,
+			environment: resolvedEnvironment(environment),
+			program:     defaultProgram,
+			fullyStatic: true,
+		}, nil
+	}
+	loader, err := executableFromEnvironment(loaderVariable)
 	if err != nil {
 		return command{}, err
 	}
@@ -88,10 +124,6 @@ func prepare(arguments, environment []string) (command, error) {
 	environment = withEnvironment(environment, loaderVariable, loader)
 	environment = withEnvironment(environment, libraryVariable, libraries)
 	environment = withEnvironment(environment, programVariable, program)
-	environment, err = resolvePathEnvironment(environment)
-	if err != nil {
-		return command{}, err
-	}
 	executable, loaderArguments, err := loaderCommand(loader)
 	if err != nil {
 		return command{}, err
@@ -112,6 +144,7 @@ func prepare(arguments, environment []string) (command, error) {
 		"--argv0", programArgv0,
 		program,
 	)
+	loaderArguments = append(loaderArguments, fixedArguments...)
 	for _, argument := range arguments {
 		loaderArguments = append(loaderArguments, resolveArgument(argument, originalWorkingDirectory))
 	}
@@ -122,6 +155,31 @@ func prepare(arguments, environment []string) (command, error) {
 		libraryPaths: strings.Split(libraries, string(os.PathListSeparator)),
 		program:      program,
 	}, nil
+}
+
+func validateStaticProgram(program string) error {
+	binary, err := elf.Open(program)
+	if err != nil {
+		return fmt.Errorf("inspect declared static ELF %s: %w", program, err)
+	}
+	for _, header := range binary.Progs {
+		if header.Type == elf.PT_INTERP {
+			_ = binary.Close()
+			return fmt.Errorf("declared static program contains PT_INTERP: %s", program)
+		}
+	}
+	libraries, err := binary.ImportedLibraries()
+	closeErr := binary.Close()
+	if err != nil {
+		return fmt.Errorf("read declared static ELF dependencies for %s: %w", program, err)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close declared static ELF %s: %w", program, closeErr)
+	}
+	if len(libraries) != 0 {
+		return fmt.Errorf("declared static program has dynamic dependencies %v: %s", libraries, program)
+	}
+	return nil
 }
 
 func booleanEnvironment(name string) (bool, error) {
@@ -189,9 +247,9 @@ func declaredLibrary(name string, libraryPaths []string) (string, error) {
 }
 
 func environmentWithSidecar(arguments, environment []string) ([]string, error) {
-	owners := []string{os.Args[0]}
-	if len(arguments) > 0 {
-		owners = append(owners, arguments[0])
+	owners, err := runtimeSidecarOwners(arguments)
+	if err != nil {
+		return nil, err
 	}
 	var content []byte
 	var sidecar string
@@ -211,6 +269,16 @@ func environmentWithSidecar(arguments, environment []string) ([]string, error) {
 		content = nil
 	}
 	if content == nil {
+		fullyStatic, err := booleanEnvironment(staticProgramVariable)
+		if err != nil {
+			return nil, err
+		}
+		if fullyStatic {
+			if os.Getenv(programVariable) == "" {
+				return nil, fmt.Errorf("%s requires %s", staticProgramVariable, programVariable)
+			}
+			return environment, nil
+		}
 		required := []string{loaderVariable, libraryVariable, programVariable}
 		configured := 0
 		for _, name := range required {
@@ -226,6 +294,14 @@ func environmentWithSidecar(arguments, environment []string) ([]string, error) {
 		}
 		return environment, nil
 	}
+	if err := os.Setenv(staticProgramVariable, "false"); err != nil {
+		return nil, fmt.Errorf("reset static runtime mode: %w", err)
+	}
+	environment = withEnvironment(environment, staticProgramVariable, "false")
+	if err := os.Setenv(fixedArgCountVariable, "0"); err != nil {
+		return nil, fmt.Errorf("reset fixed runtime arguments: %w", err)
+	}
+	environment = withEnvironment(environment, fixedArgCountVariable, "0")
 	for lineNumber, line := range strings.Split(strings.TrimSuffix(string(content), "\n"), "\n") {
 		name, value, found := strings.Cut(line, "=")
 		if !found || name == "" || strings.ContainsRune(name, '\x00') || strings.ContainsRune(value, '\x00') {
@@ -237,6 +313,86 @@ func environmentWithSidecar(arguments, environment []string) ([]string, error) {
 		environment = withEnvironment(environment, name, value)
 	}
 	return environment, nil
+}
+
+func runtimeSidecarOwners(arguments []string) ([]string, error) {
+	owner := os.Args[0]
+	if filepath.Base(owner) == owner {
+		resolved, err := executableOnDeclaredPath(owner)
+		if err != nil {
+			return nil, fmt.Errorf("resolve runtime sidecar owner %q through declared PATH: %w", owner, err)
+		}
+		owner = resolved
+	}
+	owners := []string{owner}
+	if len(arguments) > 0 {
+		owners = append(owners, arguments[0])
+	}
+	return owners, nil
+}
+
+func executableOnDeclaredPath(name string) (string, error) {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {
+		return "", fmt.Errorf("executable name must be a basename: %q", name)
+	}
+	path := os.Getenv("PATH")
+	if path == "" {
+		return "", errors.New("declared PATH is empty")
+	}
+	resolvedPath, err := absolutePathList(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve declared PATH: %w", err)
+	}
+	matches := []string{}
+	nonExecutable := []string{}
+	for _, directory := range strings.Split(resolvedPath, string(os.PathListSeparator)) {
+		candidate := filepath.Join(directory, name)
+		info, statErr := os.Stat(candidate)
+		switch {
+		case statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0:
+			matches = appendUnique(matches, candidate)
+		case statErr == nil:
+			nonExecutable = append(nonExecutable, candidate)
+		case !errors.Is(statErr, os.ErrNotExist):
+			return "", fmt.Errorf("inspect declared PATH candidate %s: %w", candidate, statErr)
+		}
+	}
+	if len(matches) == 0 && len(nonExecutable) > 0 {
+		return "", fmt.Errorf("declared PATH candidate is not executable: %s", strings.Join(nonExecutable, ", "))
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("expected exactly one executable named %q on declared PATH, found %d", name, len(matches))
+	}
+	sidecar := matches[0] + sidecarSuffix
+	info, err := os.Stat(sidecar)
+	if err != nil {
+		return "", fmt.Errorf("inspect runtime sidecar %s: %w", sidecar, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("runtime sidecar is not a regular file: %s", sidecar)
+	}
+	return matches[0], nil
+}
+
+func declaredFixedArguments(workingDirectory string) ([]string, error) {
+	value := os.Getenv(fixedArgCountVariable)
+	if value == "" {
+		return []string{}, nil
+	}
+	count, err := strconv.Atoi(value)
+	if err != nil || count < 0 || count > 4096 {
+		return nil, fmt.Errorf("%s must be an integer between 0 and 4096", fixedArgCountVariable)
+	}
+	arguments := make([]string, 0, count)
+	for index := range count {
+		name := fixedArgPrefix + strconv.Itoa(index)
+		argument, found := os.LookupEnv(name)
+		if !found {
+			return nil, fmt.Errorf("%s declares %d arguments but %s is missing", fixedArgCountVariable, count, name)
+		}
+		arguments = append(arguments, resolveArgument(argument, workingDirectory))
+	}
+	return arguments, nil
 }
 
 func loaderCommand(loader string) (string, []string, error) {

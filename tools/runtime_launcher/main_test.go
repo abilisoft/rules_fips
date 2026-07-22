@@ -53,6 +53,45 @@ func TestPrepareUsesOnlyDeclaredRuntime(t *testing.T) {
 	}
 }
 
+func TestPrepareExecutesDeclaredStaticProgramDirectly(t *testing.T) {
+	root := t.TempDir()
+	program := executableFixture(t, root, "bin/static-test")
+	wrapper := executableFixture(t, root, "bin/wrapped-test")
+	configuration := strings.Join([]string{
+		staticProgramVariable + "=true",
+		programVariable + "=" + program,
+		fixedArgCountVariable + "=1",
+		fixedArgPrefix + "0=--declared",
+	}, "\n") + "\n"
+	if err := os.WriteFile(wrapper+sidecarSuffix, []byte(configuration), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	originalArgv0 := os.Args[0]
+	os.Args[0] = wrapper
+	t.Cleanup(func() { os.Args[0] = originalArgv0 })
+	t.Setenv(staticProgramVariable, "false")
+	t.Setenv(loaderVariable, "")
+	t.Setenv(libraryVariable, "")
+	t.Setenv(programVariable, "")
+
+	prepared, err := prepare([]string{"--caller"}, []string{"LANG=C"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared.fullyStatic {
+		t.Fatal("prepare did not retain the declared static runtime mode")
+	}
+	if prepared.executable != program {
+		t.Fatalf("executable = %q, want %q", prepared.executable, program)
+	}
+	want := []string{program, "--declared", "--caller"}
+	for index, argument := range want {
+		if prepared.arguments[index] != argument {
+			t.Fatalf("argument %d = %q, want %q", index, prepared.arguments[index], argument)
+		}
+	}
+}
+
 func TestAbsoluteBeforeChdirResolvesCanonicalExternalRunfile(t *testing.T) {
 	root := t.TempDir()
 	runfiles := filepath.Join(root, "runfiles")
@@ -301,6 +340,97 @@ func TestPrepareLoadsDirectToolSidecar(t *testing.T) {
 	}
 	if prepared.arguments[6] != "--version" {
 		t.Fatalf("argument = %q, want --version", prepared.arguments[6])
+	}
+}
+
+func TestPreparePrependsDeclaredFixedArguments(t *testing.T) {
+	root := t.TempDir()
+	loader := executableFixture(t, root, "lib/ld-linux.so.2")
+	program := executableFixture(t, root, "python/bin/python3")
+	script := executableFixture(t, root, "scripts/generator.py")
+	wrapper := executableFixture(t, root, "bin/hermetic-generator")
+	configuration := strings.Join([]string{
+		loaderVariable + "=" + loader,
+		libraryVariable + "=" + filepath.Join(root, "lib"),
+		programVariable + "=" + program,
+		fixedArgCountVariable + "=2",
+		fixedArgPrefix + "0=" + script,
+		fixedArgPrefix + "1=--strict",
+	}, "\n") + "\n"
+	if err := os.WriteFile(wrapper+sidecarSuffix, []byte(configuration), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	originalArgv0 := os.Args[0]
+	os.Args[0] = wrapper
+	t.Cleanup(func() { os.Args[0] = originalArgv0 })
+	t.Setenv(loaderVariable, "")
+	t.Setenv(libraryVariable, "")
+	t.Setenv(programVariable, "")
+	t.Setenv(fixedArgCountVariable, "")
+
+	prepared, err := prepare([]string{"--output", "generated"}, []string{"LANG=C"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{script, "--strict", "--output", "generated"}
+	got := prepared.arguments[len(prepared.arguments)-len(want):]
+	for index, argument := range want {
+		if got[index] != argument {
+			t.Fatalf("argument %d = %q, want %q in %v", index, got[index], argument, prepared.arguments)
+		}
+	}
+}
+
+func TestPrepareFindsRuntimeSidecarThroughDeclaredPath(t *testing.T) {
+	root := t.TempDir()
+	loader := executableFixture(t, root, "lib/ld-linux.so.2")
+	program := executableFixture(t, root, "tools/ninja")
+	wrapper := executableFixture(t, root, "bin/hermetic-ninja")
+	configuration := strings.Join([]string{
+		loaderVariable + "=" + loader,
+		libraryVariable + "=" + filepath.Join(root, "lib"),
+		programVariable + "=" + program,
+	}, "\n") + "\n"
+	if err := os.WriteFile(wrapper+sidecarSuffix, []byte(configuration), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	originalArgv0 := os.Args[0]
+	os.Args[0] = filepath.Base(wrapper)
+	t.Cleanup(func() { os.Args[0] = originalArgv0 })
+	t.Setenv("PATH", filepath.Dir(wrapper))
+	t.Setenv(loaderVariable, "")
+	t.Setenv(libraryVariable, "")
+	t.Setenv(programVariable, "")
+
+	prepared, err := prepare([]string{"--version"}, []string{"PATH=" + filepath.Dir(wrapper)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.program != program {
+		t.Fatalf("program = %q, want %q", prepared.program, program)
+	}
+}
+
+func TestRuntimeSidecarPathLookupRejectsAmbiguousAndSidecarlessTools(t *testing.T) {
+	first := t.TempDir()
+	second := t.TempDir()
+	name := "wrapped-tool"
+	firstTool := executableFixture(t, first, name)
+	executableFixture(t, second, name)
+	t.Setenv("PATH", strings.Join([]string{first, second}, string(os.PathListSeparator)))
+	if _, err := executableOnDeclaredPath(name); err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("ambiguous lookup error = %v", err)
+	}
+
+	t.Setenv("PATH", first)
+	if _, err := executableOnDeclaredPath(name); err == nil || !strings.Contains(err.Error(), "sidecar") {
+		t.Fatalf("sidecarless lookup error = %v", err)
+	}
+	if err := os.WriteFile(firstTool+sidecarSuffix, []byte("configured\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := executableOnDeclaredPath(name); err != nil || got != firstTool {
+		t.Fatalf("declared PATH lookup = %q, %v; want %q", got, err, firstTool)
 	}
 }
 

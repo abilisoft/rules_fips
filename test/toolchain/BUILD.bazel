@@ -1,9 +1,32 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_proc_macro")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_proc_macro", "rust_test")
+load("//fips:defs.bzl", "hermetic_target_runtime_test")
 load(":run_binary_test.bzl", "run_binary_test")
 
 package(default_visibility = ["//visibility:public"])
+
+platform(
+    name = "linux_amd64_glibc_dynamic",
+    constraint_values = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_amd64",
+        "//fips/platforms:rust_dynamic_crt",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "linux_arm64_glibc_dynamic",
+    constraint_values = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_arm64",
+        "//fips/platforms:rust_dynamic_crt",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+)
 
 cc_binary(
     name = "cc_binary",
@@ -57,6 +80,41 @@ rust_binary(
     proc_macro_deps = [":consumer_macro"],
     rustc_flags = ["-Dwarnings"],
     deps = [":consumer_build_script"],
+)
+
+rust_test(
+    name = "rust_static_runtime_program",
+    srcs = ["static_runtime_test.rs"],
+    edition = "2024",
+    rustc_flags = ["-Dwarnings"],
+    tags = ["manual"],
+)
+
+hermetic_target_runtime_test(
+    name = "rust_static_runtime_test",
+    data = ":rust_static_runtime_program",
+    fully_static = True,
+    launcher = "//fips/toolchains:runtime_launcher",
+    program = ":rust_static_runtime_program",
+    runtime = "//fips/toolchains:target_musl_runtime",
+)
+
+rust_test(
+    name = "rust_dynamic_runtime_program",
+    srcs = ["dynamic_runtime_test.rs"],
+    edition = "2024",
+    features = ["rules_fips_dynamic_executable"],
+    rustc_flags = ["-Dwarnings"],
+    tags = ["manual"],
+    use_libtest_harness = False,
+)
+
+hermetic_target_runtime_test(
+    name = "rust_dynamic_runtime_test",
+    data = ":rust_dynamic_runtime_program",
+    launcher = "//fips/toolchains:runtime_launcher",
+    program = ":rust_dynamic_runtime_program",
+    runtime = "//fips/toolchains:target_glibc_runtime",
 )
 
 run_binary_test(

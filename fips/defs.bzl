@@ -11,6 +11,11 @@ load(
     _TargetPkgConfigSdkInfo = "TargetPkgConfigSdkInfo",
 )
 load("//fips:rust_adapter.bzl", _fips_rust_toolchain = "fips_rust_toolchain")
+load(
+    "//fips/toolchains:runtime_tool.bzl",
+    _hermetic_target_runtime_test = "hermetic_target_runtime_test",
+    _hermetic_target_runtime_tool = "hermetic_target_runtime_tool",
+)
 
 FipsCryptoInfo = _FipsCryptoInfo
 FipsCryptoSdkInfo = _FipsCryptoSdkInfo
@@ -19,6 +24,8 @@ TargetPkgConfigSdkInfo = _TargetPkgConfigSdkInfo
 openssl_fips = _openssl_fips
 fips_crypto_sdk = _fips_crypto_sdk
 fips_rust_toolchain = _fips_rust_toolchain
+hermetic_target_runtime_test = _hermetic_target_runtime_test
+hermetic_target_runtime_tool = _hermetic_target_runtime_tool
 target_pkg_config_sdk = _target_pkg_config_sdk
 
 def openssl_fips_sdk(name, visibility = None, tags = None):
