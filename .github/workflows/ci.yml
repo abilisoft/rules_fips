@@ -308,6 +308,7 @@ jobs:
           --nocache_test_results
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           --strategy=TestRunner=sandboxed
+          --test_output=errors
           //examples:openssl_fips_sdk_openssl_test
       - name: Run provider activation under processwrapper-sandbox
         run: >-
@@ -319,4 +320,5 @@ jobs:
           --nocache_test_results
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           --strategy=TestRunner=processwrapper-sandbox
+          --test_output=errors
           //examples:openssl_fips_sdk_openssl_test

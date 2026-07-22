@@ -416,9 +416,12 @@ def _crypto_sdk_runtime_environment_impl(ctx):
             runfiles = ctx.runfiles(transitive_files = files),
         ),
         HermeticRuntimeEnvironmentInfo(
-            path_lists = {},
+            path_lists = {
+                name: [value]
+                for name, value in runtime_environment.items()
+            },
             reentry_variables = [],
-            variables = runtime_environment,
+            variables = {},
         ),
     ]
 
