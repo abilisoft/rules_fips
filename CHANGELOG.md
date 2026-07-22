@@ -4,6 +4,17 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.3 - 2026-07-22
+
+### Fixed
+
+- `rules_rust` is now a normal module dependency because the public
+  `fips_rust_toolchain` adapter resolves its toolchain type. External Bzlmod
+  consumers no longer need to declare or override `rules_rust` themselves.
+- The external BCR fixture omits a consumer-authored `rules_rust` dependency,
+  proving that the repository-bound public adapter label is supplied by
+  `rules_fips` itself.
+
 ## 0.3.2 - 2026-07-21
 
 ### Fixed
