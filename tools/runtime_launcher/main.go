@@ -85,6 +85,8 @@ func prepare(arguments, environment []string) (command, error) {
 	if err != nil {
 		return command{}, err
 	}
+	configuredArgv0 := os.Getenv(argv0Variable)
+	environment = consumeInvocationControls(environment)
 	environment = withEnvironment(environment, programVariable, defaultProgram)
 	environment, err = resolvePathEnvironment(environment)
 	if err != nil {
@@ -112,7 +114,7 @@ func prepare(arguments, environment []string) (command, error) {
 		return command{}, fmt.Errorf("identify runtime launcher executable: %w", err)
 	}
 	program := selectedProgram(defaultProgram, executableIdentity)
-	programArgv0 := selectedArgv0(os.Getenv(argv0Variable), defaultProgram, program, executableIdentity)
+	programArgv0 := selectedArgv0(configuredArgv0, defaultProgram, program, executableIdentity)
 	libraryPath := os.Getenv(libraryVariable)
 	if libraryPath == "" {
 		return command{}, fmt.Errorf("%s is required", libraryVariable)
@@ -155,6 +157,11 @@ func prepare(arguments, environment []string) (command, error) {
 		libraryPaths: strings.Split(libraries, string(os.PathListSeparator)),
 		program:      program,
 	}, nil
+}
+
+func consumeInvocationControls(environment []string) []string {
+	environment = withEnvironment(environment, fixedArgCountVariable, "0")
+	return withEnvironment(environment, argv0Variable, "")
 }
 
 func validateStaticProgram(program string) error {

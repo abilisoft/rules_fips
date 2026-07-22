@@ -248,6 +248,15 @@ func containsPrefix(values []string, prefix string) bool {
 	return false
 }
 
+func containsEntry(values []string, entry string) bool {
+	for _, value := range values {
+		if value == entry {
+			return true
+		}
+	}
+	return false
+}
+
 func TestWithEnvironmentCarriesResolvedEmulatorToChildren(t *testing.T) {
 	got := withEnvironment(
 		[]string{"LANG=C", qemuVariable + "=relative/qemu"},
@@ -356,6 +365,7 @@ func TestPreparePrependsDeclaredFixedArguments(t *testing.T) {
 		fixedArgCountVariable + "=2",
 		fixedArgPrefix + "0=" + script,
 		fixedArgPrefix + "1=--strict",
+		argv0Variable + "=generator",
 	}, "\n") + "\n"
 	if err := os.WriteFile(wrapper+sidecarSuffix, []byte(configuration), 0o644); err != nil {
 		t.Fatal(err)
@@ -377,6 +387,18 @@ func TestPreparePrependsDeclaredFixedArguments(t *testing.T) {
 	for index, argument := range want {
 		if got[index] != argument {
 			t.Fatalf("argument %d = %q, want %q in %v", index, got[index], argument, prepared.arguments)
+		}
+	}
+	if !containsEntry(prepared.environment, fixedArgCountVariable+"=0") {
+		t.Fatalf("environment retained fixed arguments for a nested wrapper: %v", prepared.environment)
+	}
+	if !containsEntry(prepared.environment, argv0Variable+"=") {
+		t.Fatalf("environment retained argv0 for a nested wrapper: %v", prepared.environment)
+	}
+	wantArgv0 := []string{"--argv0", "generator"}
+	for index, argument := range wantArgv0 {
+		if prepared.arguments[index+3] != argument {
+			t.Fatalf("argv0 argument %d = %q, want %q", index, prepared.arguments[index+3], argument)
 		}
 	}
 }

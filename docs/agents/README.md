@@ -48,7 +48,7 @@ Fix the disagreement.
 ## Public API
 
 Until the module is published to BCR, pin the full verified commit referenced
-by the signed `v0.3.7` tag, following
+by the signed `v0.3.8` tag, following
 [Publishing](../publishing.md#consume-before-bcr). Never track a branch or tag.
 
 ```starlark

@@ -4,6 +4,15 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.8 - 2026-07-22
+
+### Fixed
+
+- Runtime-tool fixed arguments and explicit `argv[0]` values are consumed by
+  one launcher invocation instead of leaking into nested declared runtime
+  tools. Interpreter frontends can now re-enter a wrapped emulator without
+  duplicating their script argument or changing the emulator's identity.
+
 ## 0.3.7 - 2026-07-22
 
 ### Added
