@@ -235,7 +235,6 @@ def fips_rust_toolchain(
         name = implementation,
         extra_rustc_flags_for_crate_types = {
             "bin": ["-Ctarget-feature=+crt-static"] if static_crt else [
-                "-Clink-self-contained=no",
                 "-Ctarget-feature=-crt-static",
             ],
         },
