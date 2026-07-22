@@ -4,6 +4,21 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.7 - 2026-07-22
+
+### Added
+
+- `openssl_fips_sdk` publishes a normal `FilesToRunProvider` OpenSSL tool whose
+  runfiles contain the prepared provider state, configuration, provider,
+  loader, and exact runtime-library closure.
+- Native AMD64 and Arm64 CI executes provider activation through the runnable
+  SDK under both `linux-sandbox` and `processwrapper-sandbox`.
+
+### Fixed
+
+- SDK-owned OpenSSL execution no longer requires consumers to reconstruct the
+  activation environment or address raw runtime artifacts directly.
+
 ## 0.3.6 - 2026-07-22
 
 ### Fixed

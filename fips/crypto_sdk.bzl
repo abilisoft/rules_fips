@@ -4,6 +4,12 @@ load(
     "//fips:providers.bzl",
     "FipsCryptoInfo",
     "FipsCryptoSdkInfo",
+    "HermeticRuntimeEnvironmentInfo",
+)
+load(
+    "//fips/toolchains:runtime_tool.bzl",
+    "hermetic_target_runtime_test",
+    "hermetic_target_runtime_tool",
 )
 
 _TOOLCHAIN_TYPE = Label("//fips:toolchain_type")
@@ -14,6 +20,8 @@ _QEMU_EXEC_SUPPORT = Label("//fips/toolchains:qemu_aarch64_exec_support")
 _GO_EXEC = Label("//fips/toolchains:go_exec")
 _GLIBC_2_35 = Label("//fips/platforms:glibc_2_35")
 _CPU_ARM64 = Label("@platforms//cpu:arm64")
+_TARGET_GLIBC_RUNTIME = Label("//fips/toolchains:target_glibc_runtime")
+_TARGET_MUSL_RUNTIME = Label("//fips/toolchains:target_musl_runtime")
 _RUNTIME_LAYOUT = [
     ("activation", "bin/crypto-activate"),
     ("runtime_launcher", "bin/runtime-launch"),
@@ -267,6 +275,7 @@ def _crypto_sdk_impl(ctx):
                 "{activation_root}/fipsmodule.cnf",
                 "-pedantic",
             ],
+            activation_exec_tool = ctx.attr.activation_exec[DefaultInfo].files_to_run,
             activation_tool = ctx.attr.activation[DefaultInfo].files_to_run,
             activation_tool_release_path = "bin/crypto-activate",
             artifacts = artifacts,
@@ -298,6 +307,11 @@ _crypto_sdk = rule(
     attrs = {
         "activation": attr.label(
             cfg = "target",
+            executable = True,
+            mandatory = True,
+        ),
+        "activation_exec": attr.label(
+            cfg = "exec",
             executable = True,
             mandatory = True,
         ),
@@ -338,6 +352,86 @@ _crypto_sdk_artifact = rule(
     },
 )
 
+def _crypto_sdk_executable_artifact_impl(ctx):
+    sdk = ctx.attr.sdk[FipsCryptoSdkInfo]
+    program = sdk.artifacts[ctx.attr.kind]
+    executable = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.symlink(
+        output = executable,
+        target_file = program,
+        is_executable = True,
+    )
+    return [DefaultInfo(
+        executable = executable,
+        files = depset([executable, program]),
+        runfiles = ctx.runfiles(files = [executable, program]),
+    )]
+
+_crypto_sdk_executable_artifact = rule(
+    implementation = _crypto_sdk_executable_artifact_impl,
+    attrs = {
+        "kind": attr.string(mandatory = True, values = ["openssl"]),
+        "sdk": attr.label(
+            mandatory = True,
+            providers = [FipsCryptoSdkInfo],
+        ),
+    },
+    executable = True,
+)
+
+def _expand_sdk_path(value, sysroot, activation_root):
+    return value.replace("{sysroot}", sysroot).replace("{activation_root}", activation_root)
+
+def _crypto_sdk_runtime_environment_impl(ctx):
+    sdk = ctx.attr.sdk[FipsCryptoSdkInfo]
+    state = ctx.actions.declare_directory(ctx.label.name + "_state")
+    activation_args = [
+        _expand_sdk_path(argument, sdk.sysroot.path, state.path)
+        for argument in sdk.activation_args
+    ]
+    ctx.actions.run(
+        arguments = activation_args,
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = sdk.activation_exec_tool,
+        execution_requirements = {"block-network": "1"},
+        inputs = depset([sdk.sysroot]),
+        mnemonic = "FipsSdkPrepare",
+        outputs = [state],
+        progress_message = "Preparing declared OpenSSL FIPS provider state",
+        tools = [sdk.activation_exec_tool],
+        use_default_shell_env = False,
+    )
+    runtime_environment = {
+        name: _expand_sdk_path(value, sdk.sysroot.path, state.path)
+        for name, value in sdk.runtime_environment.items()
+    }
+    files = depset(direct = [sdk.sysroot, state] + sdk.runtime_files)
+    return [
+        DefaultInfo(
+            files = files,
+            runfiles = ctx.runfiles(transitive_files = files),
+        ),
+        HermeticRuntimeEnvironmentInfo(
+            path_lists = {},
+            reentry_variables = [],
+            variables = runtime_environment,
+        ),
+    ]
+
+_crypto_sdk_runtime_environment = rule(
+    implementation = _crypto_sdk_runtime_environment_impl,
+    attrs = {
+        "sdk": attr.label(
+            mandatory = True,
+            providers = [FipsCryptoSdkInfo],
+        ),
+    },
+)
+
 def fips_crypto_sdk(name, crypto, visibility = None, tags = None):
     """Exports a FIPS crypto build through the normalized OTP SDK contract.
 
@@ -352,7 +446,8 @@ def fips_crypto_sdk(name, crypto, visibility = None, tags = None):
       tags: Optional tags applied to generated targets.
 
     Returns:
-      A struct with an `otp_crypto_sdk` keyword-argument dictionary.
+      A struct with an `otp_crypto_sdk` keyword-argument dictionary plus
+      `openssl_tool` and `openssl_test` labels for the runnable SDK program.
     """
     common = {}
     if tags != None:
@@ -397,6 +492,7 @@ def fips_crypto_sdk(name, crypto, visibility = None, tags = None):
     _crypto_sdk(
         name = name,
         activation = ":" + activation,
+        activation_exec = ":" + activation_exec,
         crypto = crypto,
         runtime_launcher = ":" + runtime_launcher,
         **sdk_args
@@ -416,50 +512,98 @@ def fips_crypto_sdk(name, crypto, visibility = None, tags = None):
         runtime_files.append(":" + target)
         runtime_destinations.append(destination)
 
-    return struct(otp_crypto_sdk = {
-        "activation_args": [
-            "--sdk-root",
-            "{sysroot}",
-            "fipsinstall",
-            "-module",
-            "{sysroot}/lib/ossl-modules/fips.so",
-            "-out",
-            "{activation_root}/fipsmodule.cnf",
-            "-pedantic",
-        ],
-        "activation_exec_tool": ":" + activation_exec,
-        "activation_tool": ":" + activation,
-        "activation_tool_release_path": "bin/crypto-activate",
-        "backend_metadata": {
-            "producer": "rules_fips",
-        },
-        "cc_features": ["rules_fips_dynamic_executable"],
-        "build_elf_interpreter": "/__bazel_hermetic_runtime__/declared-loader",
-        "execution_exec_wrapper": ":" + runtime_launcher_exec,
-        "execution_wrapper": ":" + runtime_launcher,
-        "execution_wrapper_environment": select({
-            _GLIBC_2_35: {
-                "RULES_FIPS_RUNTIME_INHIBIT_CACHE": "true",
-                "RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sysroot}/lib",
-                "RULES_FIPS_RUNTIME_LOADER": "{sysroot}/lib/ld-runtime.so.1",
-                "RULES_FIPS_RUNTIME_PROGRAM": "{program}",
-            },
-            "//conditions:default": {
-                "RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sysroot}/lib",
-                "RULES_FIPS_RUNTIME_LOADER": "{sysroot}/lib/ld-runtime.so.1",
-                "RULES_FIPS_RUNTIME_PROGRAM": "{program}",
-            },
-        }),
-        "execution_wrapper_release_path": "bin/runtime-launch",
-        "exec_support_files": [_QEMU_EXEC_SUPPORT],
-        "fully_static": False,
-        "linkopts": ["-ldl", "-pthread", "-lm"],
-        "runtime_destinations": runtime_destinations,
-        "runtime_environment": {
-            "FIPS_MODULE_CONF": "{activation_root}/fipsmodule.cnf",
-            "OPENSSL_CONF": "{sysroot}/ssl/openssl.cnf",
-            "OPENSSL_MODULES": "{sysroot}/lib/ossl-modules",
-        },
-        "runtime_files": runtime_files,
-        "sysroot": ":" + name,
+    openssl_program = name + "_openssl_program"
+    openssl_runtime = name + "_openssl_runtime"
+    openssl_tool = name + "_openssl_tool"
+    openssl_test = name + "_openssl_test"
+    _crypto_sdk_executable_artifact(
+        name = openssl_program,
+        kind = "openssl",
+        sdk = ":" + name,
+        **sdk_args
+    )
+    _crypto_sdk_runtime_environment(
+        name = openssl_runtime,
+        sdk = ":" + name,
+        **sdk_args
+    )
+    target_runtime = select({
+        _GLIBC_2_35: _TARGET_GLIBC_RUNTIME,
+        "//conditions:default": _TARGET_MUSL_RUNTIME,
     })
+    hermetic_target_runtime_tool(
+        name = openssl_tool,
+        data = ":" + openssl_runtime,
+        launcher = ":" + runtime_launcher,
+        program = ":" + openssl_program,
+        runtime = target_runtime,
+        variable = "OPENSSL",
+        **sdk_args
+    )
+    hermetic_target_runtime_test(
+        name = openssl_test,
+        data = ":" + openssl_runtime,
+        fixed_args = [
+            "list",
+            "-providers",
+            "-provider",
+            "fips",
+            "-verbose",
+        ],
+        launcher = ":" + runtime_launcher,
+        program = ":" + openssl_program,
+        runtime = target_runtime,
+        **sdk_args
+    )
+
+    return struct(
+        openssl_test = ":" + openssl_test,
+        openssl_tool = ":" + openssl_tool,
+        otp_crypto_sdk = {
+            "activation_args": [
+                "--sdk-root",
+                "{sysroot}",
+                "fipsinstall",
+                "-module",
+                "{sysroot}/lib/ossl-modules/fips.so",
+                "-out",
+                "{activation_root}/fipsmodule.cnf",
+                "-pedantic",
+            ],
+            "activation_exec_tool": ":" + activation_exec,
+            "activation_tool": ":" + activation,
+            "activation_tool_release_path": "bin/crypto-activate",
+            "backend_metadata": {
+                "producer": "rules_fips",
+            },
+            "cc_features": ["rules_fips_dynamic_executable"],
+            "build_elf_interpreter": "/__bazel_hermetic_runtime__/declared-loader",
+            "execution_exec_wrapper": ":" + runtime_launcher_exec,
+            "execution_wrapper": ":" + runtime_launcher,
+            "execution_wrapper_environment": select({
+                _GLIBC_2_35: {
+                    "RULES_FIPS_RUNTIME_INHIBIT_CACHE": "true",
+                    "RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sysroot}/lib",
+                    "RULES_FIPS_RUNTIME_LOADER": "{sysroot}/lib/ld-runtime.so.1",
+                    "RULES_FIPS_RUNTIME_PROGRAM": "{program}",
+                },
+                "//conditions:default": {
+                    "RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sysroot}/lib",
+                    "RULES_FIPS_RUNTIME_LOADER": "{sysroot}/lib/ld-runtime.so.1",
+                    "RULES_FIPS_RUNTIME_PROGRAM": "{program}",
+                },
+            }),
+            "execution_wrapper_release_path": "bin/runtime-launch",
+            "exec_support_files": [_QEMU_EXEC_SUPPORT],
+            "fully_static": False,
+            "linkopts": ["-ldl", "-pthread", "-lm"],
+            "runtime_destinations": runtime_destinations,
+            "runtime_environment": {
+                "FIPS_MODULE_CONF": "{activation_root}/fipsmodule.cnf",
+                "OPENSSL_CONF": "{sysroot}/ssl/openssl.cnf",
+                "OPENSSL_MODULES": "{sysroot}/lib/ossl-modules",
+            },
+            "runtime_files": runtime_files,
+            "sysroot": ":" + name,
+        },
+    )

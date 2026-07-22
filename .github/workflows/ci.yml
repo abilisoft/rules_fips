@@ -59,6 +59,8 @@ jobs:
           --platforms=@rules_fips//fips/platforms:linux_amd64
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //:external_sdk
+          //:external_sdk_openssl_test
+          //:external_sdk_openssl_tool
           //:external_rust_toolchain_impl
       - name: Build exported SDK execution helpers on GNU Linux
         working-directory: e2e/bcr
@@ -262,4 +264,54 @@ jobs:
           --config=${{ matrix.platform }}
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
           //examples:openssl_fips_sdk
+          //examples:openssl_fips_sdk_openssl_tool
           //test/pkgconfig:openssl_sdk_check
+
+  sdk-runtime:
+    name: Runnable OpenSSL SDK (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux_amd64
+            runner: ubuntu-24.04
+          - platform: linux_amd64_glibc
+            runner: ubuntu-24.04
+          - platform: linux_arm64
+            runner: ubuntu-24.04-arm
+          - platform: linux_arm64_glibc
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+          disk-cache: true
+          repository-cache: true
+      - name: Run provider activation under linux-sandbox
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --config=${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_${{ contains(matrix.platform, 'arm64') && 'arm64' || 'amd64' }}
+          --modify_execution_info='^TestRunner$=+no-remote-exec'
+          --nocache_test_results
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          --strategy=TestRunner=linux-sandbox
+          //examples:openssl_fips_sdk_openssl_test
+      - name: Run provider activation under processwrapper-sandbox
+        run: >-
+          bazel test
+          ${BAZEL_REMOTE_FALLBACK}
+          --config=${{ matrix.platform }}
+          --extra_execution_platforms=//fips/platforms:linux_execution_${{ contains(matrix.platform, 'arm64') && 'arm64' || 'amd64' }}
+          --modify_execution_info='^TestRunner$=+no-remote-exec'
+          --nocache_test_results
+          --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
+          --strategy=TestRunner=processwrapper-sandbox
+          //examples:openssl_fips_sdk_openssl_test

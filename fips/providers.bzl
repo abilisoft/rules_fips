@@ -21,6 +21,7 @@ FipsCryptoSdkInfo = provider(
     doc = "A normalized crypto SDK export for backend-neutral consumers such as rules_elixir_mix.",
     fields = {
         "activation_args": "Argument vector for the shell-free activation executable.",
+        "activation_exec_tool": "Execution-configured activation executable used to prepare provider state.",
         "activation_tool": "Target-configured activation executable.",
         "activation_tool_release_path": "SDK-relative deployment path of the activation executable.",
         "artifacts": "Named individual artifacts used to assemble deployment payloads.",

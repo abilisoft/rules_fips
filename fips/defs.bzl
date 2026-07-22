@@ -38,7 +38,8 @@ def openssl_fips_sdk(name, visibility = None, tags = None):
 
     Returns:
       A struct whose `otp_crypto_sdk` field can be expanded directly into
-      rules_elixir_mix's backend-neutral `otp_crypto_sdk` rule.
+      rules_elixir_mix's backend-neutral `otp_crypto_sdk` rule, and whose
+      `openssl_tool` and `openssl_test` fields name runnable SDK targets.
     """
     crypto_name = name + "_crypto"
     common = {}

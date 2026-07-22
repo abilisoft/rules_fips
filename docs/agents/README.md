@@ -48,7 +48,7 @@ Fix the disagreement.
 ## Public API
 
 Until the module is published to BCR, pin the full verified commit referenced
-by the signed `v0.3.6` tag, following
+by the signed `v0.3.7` tag, following
 [Publishing](../publishing.md#consume-before-bcr). Never track a branch or tag.
 
 ```starlark
@@ -58,6 +58,11 @@ openssl_fips_sdk(
     name = "crypto_sdk",
 )
 ```
+
+Use `//:crypto_sdk_openssl_tool` when another Bazel rule needs OpenSSL as an
+executable. Do not address the raw SDK binary or reconstruct activation state;
+the executable target already carries the declared provider, config, loader,
+libraries, and generated module config in runfiles.
 
 There is one crypto backend: OpenSSL. Adding another backend requires a new
 explicit project decision and a clean, upstream-supported, no-patch

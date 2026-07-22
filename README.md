@@ -27,7 +27,9 @@ deployment payload. A consumer receives:
 - `include/`, `lib/libcrypto.a`, and `lib/libssl.a` for its build;
 - `fips.so`, `openssl.cnf`, OpenSSL, the selected loader/libc, and license/evidence
   files for deployment;
-- a native activation tool and a native runtime-loader wrapper; and
+- a native activation tool and a native runtime-loader wrapper;
+- a normal executable OpenSSL target with prepared provider state and complete
+  runfiles; and
 - opaque argument/environment templates. Consumers do not branch on backend
   identity.
 
@@ -80,6 +82,23 @@ openssl_fips_sdk(
     name = "crypto_sdk",
 )
 ```
+
+The macro also publishes `//:crypto_sdk_openssl_tool`. Use it as an ordinary
+executable label in `tools` or executable attributes; its `FilesToRunProvider`
+contains the OpenSSL program, generated `fipsmodule.cnf`, provider,
+configuration, target loader, and exact target runtime libraries. It never
+searches a host `PATH`, OpenSSL installation, provider directory, or config.
+
+Run the SDK-owned provider check directly with:
+
+```console
+bazel test --config=local --config=linux_amd64 \
+  //:crypto_sdk_openssl_test
+```
+
+State preparation runs the SDK's declared `fipsinstall` command with action
+networking blocked. The test then loads the FIPS provider through the same
+runtime contract consumers receive.
 
 The catalog is the easy path. A root module may select any tested pair:
 
