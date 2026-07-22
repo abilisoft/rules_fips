@@ -230,7 +230,7 @@
     "//fips:extensions.bzl%fips_sources": {
       "general": {
         "bzlTransitiveDigest": "bnsvf5bkeUVkhQd1vqbSGr7pORLqSB79ED8LFylt3EI=",
-        "usagesDigest": "mQqLx2xUbn3utWdBmBZJTtqAeQGsiIfUz43Vtc7AIKg=",
+        "usagesDigest": "s3J48Vps4DG9PzQ5vSvNh42P/h4mCTJkyJ2JqCmQhLM=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "openssl_core_src": {
@@ -697,7 +697,7 @@
     "@@rules_rust+//crate_universe:extensions.bzl%crate": {
       "general": {
         "bzlTransitiveDigest": "zegnm8AnG6WYelD3wp5gwhY+N6Ja24tvnCsgBcGDGL0=",
-        "usagesDigest": "IzZzRge2gsLjdCt66yQZSREIuvKPrVebwo1B6JDhX24=",
+        "usagesDigest": "Ho5uJSUsy7j+edRizGHbOxIor9u6RjJq9xI5eeX3pvI=",
         "recordedInputs": [
           "ENV:CARGO_BAZEL_DEBUG \\0",
           "ENV:CARGO_BAZEL_GENERATOR_SHA256 \\0",
