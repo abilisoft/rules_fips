@@ -30,6 +30,9 @@ Bazel Central Registry.
 - Static-musl and dynamic-glibc Rust tests execute through target-configured
   launchers on AMD64 and native Arm64. Static remains the default, and shared
   library links never inherit executable CRT policy.
+- Target runtime launchers consume a runtime-only loader/library provider, so
+  native Arm64 execution no longer pulls the AMD64 cross compiler or other
+  build-only SDK inputs.
 
 ## 0.3.4 - 2026-07-22
 

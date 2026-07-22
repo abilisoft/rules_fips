@@ -1,6 +1,11 @@
 """Shell-free wrappers for dynamically linked execution tools."""
 
-load("//fips:providers.bzl", "FipsPlatformInfo", "HermeticRuntimeEnvironmentInfo")
+load("//fips:providers.bzl", "FipsPlatformInfo", "HermeticRuntimeEnvironmentInfo", "HermeticRuntimeInfo")
+
+def _runtime_info(target):
+    if HermeticRuntimeInfo in target:
+        return target[HermeticRuntimeInfo]
+    return target[FipsPlatformInfo]
 
 def _project_runtime_libraries(ctx):
     projected = []
@@ -40,7 +45,7 @@ def _runtime_library_path(platform, program, library_files, relative_library_dir
     return loader, ":".join(directories)
 
 def _hermetic_runtime_tool_impl(ctx):
-    platform = ctx.attr.runtime[FipsPlatformInfo]
+    platform = _runtime_info(ctx.attr.runtime)
     if ctx.attr.fully_static and (ctx.files.library_files or ctx.attr.relative_library_dirs):
         fail("fully_static runtime tools must not declare dynamic library inputs")
     projected_libraries = _project_runtime_libraries(ctx)
@@ -170,7 +175,11 @@ def _runtime_tool_attrs(configuration):
         "relative_library_dirs": attr.string_list(
             doc = "Declared library directories relative to the program directory.",
         ),
-        "runtime": attr.label(mandatory = True, providers = [FipsPlatformInfo], cfg = configuration),
+        "runtime": attr.label(
+            mandatory = True,
+            providers = [[HermeticRuntimeInfo], [FipsPlatformInfo]],
+            cfg = configuration,
+        ),
         "variable": attr.string(),
     }
 

@@ -161,6 +161,11 @@ Platforms that request `rust_dynamic_crt` select a separately registered
 validate the loader and shared-library closure. The regression matrix executes
 that contract with glibc on AMD64 and native Arm64.
 
+Target runtime wrappers consume a runtime-only provider containing the
+normalized loader and shared-library closure. Compiler, Go, QEMU, and SDK build
+inputs remain on the full platform provider and are not dragged into a native
+runtime action merely because they produced the same sysroot.
+
 The official Rust musl standard-library archives in the built-in toolchains are
 compiled with static libc. Disabling the final executable's CRT feature cannot
 rebuild that standard library, so the repository does not advertise those
