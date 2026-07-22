@@ -12,7 +12,8 @@ Bazel Central Registry.
   runfiles contain the prepared provider state, configuration, provider,
   loader, and exact runtime-library closure.
 - Native AMD64 and Arm64 CI executes provider activation through the runnable
-  SDK under both `linux-sandbox` and `processwrapper-sandbox`.
+  SDK under Bazel's Linux `sandboxed` strategy and the explicit
+  `processwrapper-sandbox` strategy.
 
 ### Fixed
 

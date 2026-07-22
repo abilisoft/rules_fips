@@ -297,7 +297,7 @@ jobs:
           bazelisk-cache: true
           disk-cache: true
           repository-cache: true
-      - name: Run provider activation under linux-sandbox
+      - name: Run provider activation under the Linux sandbox
         run: >-
           bazel test
           ${BAZEL_REMOTE_FALLBACK}
@@ -306,7 +306,7 @@ jobs:
           --modify_execution_info='^TestRunner$=+no-remote-exec'
           --nocache_test_results
           --remote_header=x-buildbuddy-api-key="${BUILDBUDDY_ORG_API_KEY}"
-          --strategy=TestRunner=linux-sandbox
+          --strategy=TestRunner=sandboxed
           //examples:openssl_fips_sdk_openssl_test
       - name: Run provider activation under processwrapper-sandbox
         run: >-
