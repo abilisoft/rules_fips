@@ -86,6 +86,14 @@ HermeticRuntimeEnvironmentInfo = provider(
     },
 )
 
+HermeticRuntimeInfo = provider(
+    doc = "A normalized target loader and exact shared-library closure with no compiler dependency.",
+    fields = {
+        "libc_runtime_entries": "Runtime files paired with normalized destinations.",
+        "libc_runtime_files": "Declared target loader and shared-library closure.",
+    },
+)
+
 ForeignToolboxInfo = provider(
     doc = "Pinned execution tools used only at unavoidable upstream Configure/make boundaries.",
     fields = {

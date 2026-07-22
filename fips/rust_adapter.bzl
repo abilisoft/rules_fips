@@ -171,13 +171,16 @@ def fips_rust_toolchain(
         launcher = _DEFAULT_RUNTIME_LAUNCHER,
         runtime_libraries = _DEFAULT_RUNTIME_LIBRARIES,
         pkg_config_sdk = None,
+        static_crt = True,
         tags = None,
         visibility = None):
     """Adapts a rules_rust toolchain to the declared GNU execution runtime.
 
     The target linker continues to come from Bazel's resolved C/C++ toolchain.
-    Executable crates receive Rust's static CRT; shared objects, including proc
-    macros, remain dynamic.
+    Executable crates receive Rust's static CRT by default; shared objects,
+    including proc macros, remain dynamic. A separately constrained toolchain
+    may set static_crt=False for target executables whose declared runtime is
+    supplied by hermetic_target_runtime_tool.
 
     Args:
       name: Registered toolchain target name.
@@ -189,6 +192,7 @@ def fips_rust_toolchain(
       launcher: Static runtime launcher.
       runtime_libraries: Declared non-libc libraries required by Rust's execution tools.
       pkg_config_sdk: Optional target_pkg_config_sdk target made available to Cargo build scripts.
+      static_crt: Whether executable crates receive Rust's +crt-static target feature.
       tags: Optional tags applied to generated targets.
       visibility: Optional visibility of the registered toolchain.
     """
@@ -229,6 +233,11 @@ def fips_rust_toolchain(
         adapter_args["pkg_config_sdk"] = pkg_config_sdk
     rust_toolchain_adapter(
         name = implementation,
+        extra_rustc_flags_for_crate_types = {
+            "bin": ["-Ctarget-feature=+crt-static"] if static_crt else [
+                "-Ctarget-feature=-crt-static",
+            ],
+        },
         toolchain = toolchain,
         **adapter_args
     )

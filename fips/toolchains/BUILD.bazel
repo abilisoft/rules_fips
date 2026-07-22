@@ -20,6 +20,7 @@ load(":cc_toolchain.bzl", "fips_bootlin_cc_toolchain_config", "fips_glibc_cc_too
 load(":compiler_runtime.bzl", "libssp_nonshared")
 load(
     ":defs.bzl",
+    "fips_bootlin_runtime",
     "fips_bootlin_platform_toolchain",
     "fips_glibc_platform_toolchain",
 )
@@ -79,6 +80,7 @@ fips_rust_toolchain(
     ],
     target_compatible_with = [
         "//fips/platforms:glibc_2_35",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
@@ -95,11 +97,30 @@ fips_rust_toolchain(
     target_compatible_with = [
         "//fips/platforms:musl",
         "//fips/platforms:openssl_fips_musl_amd64",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
     toolchain = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools//:rust_toolchain",
     tools_repository = "@rust_linux_x86_64__x86_64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__x86_64-unknown-linux-gnu__dynamic",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    static_crt = False,
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_amd64",
+        "//fips/platforms:rust_dynamic_crt",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__x86_64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__x86_64-unknown-linux-gnu__stable_tools",
 )
 
 fips_rust_toolchain(
@@ -110,6 +131,7 @@ fips_rust_toolchain(
     ],
     target_compatible_with = [
         "//fips/platforms:glibc_2_35",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
@@ -126,11 +148,30 @@ fips_rust_toolchain(
     target_compatible_with = [
         "//fips/platforms:musl",
         "//fips/platforms:openssl_fips_musl_arm64",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
     toolchain = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools//:rust_toolchain",
     tools_repository = "@rust_linux_x86_64__aarch64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_x86_64__aarch64-unknown-linux-gnu__dynamic",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    static_crt = False,
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_arm64",
+        "//fips/platforms:rust_dynamic_crt",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_x86_64__aarch64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_x86_64__aarch64-unknown-linux-gnu__stable_tools",
 )
 
 fips_rust_toolchain(
@@ -141,6 +182,7 @@ fips_rust_toolchain(
     ],
     target_compatible_with = [
         "//fips/platforms:glibc_2_35",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
@@ -157,11 +199,30 @@ fips_rust_toolchain(
     target_compatible_with = [
         "//fips/platforms:musl",
         "//fips/platforms:openssl_fips_musl_arm64",
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
     toolchain = "@rust_linux_aarch64__aarch64-unknown-linux-musl__stable_tools//:rust_toolchain",
     tools_repository = "@rust_linux_aarch64__aarch64-unknown-linux-musl__stable_tools",
+)
+
+fips_rust_toolchain(
+    name = "rust_linux_aarch64__aarch64-unknown-linux-gnu__dynamic",
+    exec_compatible_with = [
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    static_crt = False,
+    target_compatible_with = [
+        "//fips/platforms:glibc_2_35",
+        "//fips/platforms:openssl_fips_glibc_arm64",
+        "//fips/platforms:rust_dynamic_crt",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = "@rust_linux_aarch64__aarch64-unknown-linux-gnu__stable_tools//:rust_toolchain",
+    tools_repository = "@rust_linux_aarch64__aarch64-unknown-linux-gnu__stable_tools",
 )
 
 fips_rust_toolchain(
@@ -171,6 +232,7 @@ fips_rust_toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
@@ -185,6 +247,7 @@ fips_rust_toolchain(
         "@platforms//os:linux",
     ],
     target_compatible_with = [
+        "//fips/platforms:rust_static_crt",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],
@@ -266,7 +329,11 @@ hermetic_runtime_tool(
     name = "hermetic_cmake",
     data = ":cmake_exec_data",
     launcher = ":runtime_launcher",
-    path_tools = [":ninja"],
+    path_tools = [
+        ":ninja",
+        ":posix_tools",
+        ":perl",
+    ],
     program = ":cmake_exec",
     runtime = ":execution_glibc",
 )
@@ -739,6 +806,84 @@ alias(
     }),
 )
 
+alias(
+    name = "target_musl_runtime",
+    actual = select({
+        "@platforms//cpu:arm64": ":runtime_musl_arm64",
+        "//conditions:default": ":runtime_musl_amd64",
+    }),
+)
+
+alias(
+    name = "target_glibc_runtime",
+    actual = select({
+        "@platforms//cpu:arm64": ":runtime_glibc_arm64",
+        "//conditions:default": ":runtime_glibc_amd64",
+    }),
+)
+
+fips_bootlin_runtime(
+    name = "runtime_musl_amd64",
+    arch = "amd64",
+    libc = "musl",
+    loader = "ld-musl-x86_64.so.1",
+    runtime_libraries = ["libgcc_s.so.1", "libstdc++.so.6"],
+    sysroot = "@fips_musl_1_2_5_amd64//:toolchain",
+    sysroot_marker = "@fips_musl_1_2_5_amd64//:x86_64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-musl",
+)
+
+fips_bootlin_runtime(
+    name = "runtime_musl_arm64",
+    arch = "arm64",
+    libc = "musl",
+    loader = "ld-musl-aarch64.so.1",
+    runtime_libraries = ["libgcc_s.so.1", "libstdc++.so.6"],
+    sysroot = "@fips_musl_1_2_5_arm64//:toolchain",
+    sysroot_marker = "@fips_musl_1_2_5_arm64//:aarch64-buildroot-linux-musl/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-musl",
+)
+
+fips_bootlin_runtime(
+    name = "runtime_glibc_amd64",
+    arch = "amd64",
+    libc = "glibc",
+    loader = "ld-linux-x86-64.so.2",
+    runtime_libraries = [
+        "libc.so.6",
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libresolv.so.2",
+        "librt.so.1",
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_glibc_2_35_amd64//:toolchain",
+    sysroot_marker = "@fips_glibc_2_35_amd64//:x86_64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "x86_64-buildroot-linux-gnu",
+)
+
+fips_bootlin_runtime(
+    name = "runtime_glibc_arm64",
+    arch = "arm64",
+    libc = "glibc",
+    loader = "ld-linux-aarch64.so.1",
+    runtime_libraries = [
+        "libc.so.6",
+        "libdl.so.2",
+        "libm.so.6",
+        "libpthread.so.0",
+        "libresolv.so.2",
+        "librt.so.1",
+        "libgcc_s.so.1",
+        "libstdc++.so.6",
+    ],
+    sysroot = "@fips_glibc_2_35_arm64//:toolchain",
+    sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
+    target_triplet = "aarch64-buildroot-linux-gnu",
+)
+
 [
     hermetic_make(
         name = "hermetic_make_%s" % arch,
@@ -891,12 +1036,17 @@ foreign_perl(
 )
 
 hermetic_runtime_tool(
-    name = "hermetic_perl",
+    name = "perl",
     data = ":foreign_perl",
     launcher = ":runtime_launcher",
     program = ":foreign_perl",
     runtime = ":execution_glibc",
     variable = "PERL",
+)
+
+alias(
+    name = "hermetic_perl",
+    actual = ":perl",
 )
 
 foreign_perl_smoke(

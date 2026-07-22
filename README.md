@@ -151,6 +151,36 @@ native build changes into a Cargo or CMake output directory. See
 [Portability](docs/portability.md) for the tested AMD64/Arm64 and musl/glibc
 matrix.
 
+`static_crt = True` remains the default. A dynamic-runtime profile uses a
+separate target constraint and toolchain so Bazel never resolves both policies
+for the same platform:
+
+```starlark
+fips_rust_toolchain(
+    name = "rust_dynamic",
+    # Underlying rules_rust toolchain and execution constraints omitted.
+    static_crt = False,
+    target_compatible_with = [
+        "@rules_fips//fips/platforms:rust_dynamic_crt",
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+```
+
+Run a resulting target through `hermetic_target_runtime_tool` or
+`hermetic_target_runtime_test`. These rules use the target configuration,
+carry the exact loader and libraries in runfiles, and validate the ELF closure
+before execution. `fully_static = True` instead rejects `PT_INTERP` and every
+dynamic dependency before starting the target.
+
+The built-in musl Rust profiles remain fully static. Official Rust musl
+standard-library archives are compiled for static libc and cannot be converted
+into a dynamic libc build by a final-link flag. A consumer may use
+`static_crt = False` with a separately supplied Rust toolchain whose standard
+library was genuinely built for dynamic musl; `rules_fips` does not pretend the
+stock archive has that shape.
+
 Build scripts that start CMake or Ninja must declare those executables through
 `cargo_build_script.tools` and use `$(execpath ...)`. `rules_rust` resolves that
 public location contract to one stable absolute execroot path before the build

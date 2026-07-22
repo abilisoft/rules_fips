@@ -3,6 +3,7 @@
 load(
     "//fips:providers.bzl",
     "FipsPlatformInfo",
+    "HermeticRuntimeInfo",
 )
 
 _RUNTIME_STAGER = Label("//fips/private:fips_artifact_validator")
@@ -71,14 +72,7 @@ def _runtime_file(files, sysroot, basename):
         fail("expected one declared {} runtime file below {}, got {}".format(basename, sysroot, matches))
     return matches[0]
 
-def _fips_bootlin_platform_toolchain_impl(ctx):
-    clang = _clang_values(ctx)
-    go_bin, go_files = _archive_tool(
-        ctx.attr.go,
-        "pinned Go archive",
-        "/bin/go",
-    )
-    files = ctx.attr.sysroot[DefaultInfo].files
+def _bootlin_runtime_entries(ctx, files):
     file_list = files.to_list()
     root = _bootlin_root(ctx.file.sysroot_marker, ctx.attr.target_triplet)
     sysroot = root + "/" + ctx.attr.target_triplet + "/sysroot"
@@ -98,7 +92,17 @@ def _fips_bootlin_platform_toolchain_impl(ctx):
             destination = name,
             file = _runtime_file(file_list, sysroot, name),
         ))
-    runtime_entries = _stage_runtime_entries(ctx, runtime_entries)
+    return _stage_runtime_entries(ctx, runtime_entries)
+
+def _fips_bootlin_platform_toolchain_impl(ctx):
+    clang = _clang_values(ctx)
+    go_bin, go_files = _archive_tool(
+        ctx.attr.go,
+        "pinned Go archive",
+        "/bin/go",
+    )
+    files = ctx.attr.sysroot[DefaultInfo].files
+    runtime_entries = _bootlin_runtime_entries(ctx, files)
     libc_license = ctx.file.libc_license
     qemu_aarch64_file = ctx.file.qemu_aarch64 if ctx.attr.qemu_aarch64 else None
     qemu_aarch64_files = ctx.attr.qemu_aarch64[DefaultInfo].files if ctx.attr.qemu_aarch64 else depset()
@@ -124,6 +128,37 @@ def _fips_bootlin_platform_toolchain_impl(ctx):
         info,
         platform_common.ToolchainInfo(fips = info),
     ]
+
+def _fips_bootlin_runtime_impl(ctx):
+    files = ctx.attr.sysroot[DefaultInfo].files
+    runtime_entries = _bootlin_runtime_entries(ctx, files)
+    runtime_files = depset([entry.file for entry in runtime_entries])
+    return [
+        DefaultInfo(files = runtime_files),
+        HermeticRuntimeInfo(
+            libc_runtime_entries = runtime_entries,
+            libc_runtime_files = runtime_files,
+        ),
+    ]
+
+fips_bootlin_runtime = rule(
+    implementation = _fips_bootlin_runtime_impl,
+    attrs = {
+        "arch": attr.string(mandatory = True),
+        "libc": attr.string(mandatory = True, values = ["glibc", "musl"]),
+        "loader": attr.string(mandatory = True),
+        "runtime_libraries": attr.string_list(),
+        "sysroot": attr.label(mandatory = True),
+        "sysroot_marker": attr.label(allow_single_file = True, mandatory = True),
+        "target_triplet": attr.string(mandatory = True),
+        "_runtime_stager": attr.label(
+            default = _RUNTIME_STAGER,
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+    doc = "Stages a target libc runtime without pulling compiler-only platform inputs.",
+)
 
 fips_bootlin_platform_toolchain = rule(
     implementation = _fips_bootlin_platform_toolchain_impl,

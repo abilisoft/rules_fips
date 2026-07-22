@@ -153,6 +153,26 @@ fails closed. The regression matrix builds unmodified
 `yeslogic-fontconfig-sys` 6.0.1 for AMD64 and Arm64 musl from an AMD64 GNU
 execution platform.
 
+Static and dynamic Rust executable policy is selected at toolchain resolution,
+not appended at an individual target after a conflicting flag. The default
+`rust_static_crt` constraint keeps the built-in musl profiles fully static.
+Platforms that request `rust_dynamic_crt` select a separately registered
+`static_crt = False` adapter; target-configured runtime rules then carry and
+validate the loader and shared-library closure. The regression matrix executes
+that contract with glibc on AMD64 and native Arm64.
+
+Target runtime wrappers consume a runtime-only provider containing the
+normalized loader and shared-library closure. Compiler, Go, QEMU, and SDK build
+inputs remain on the full platform provider and are not dragged into a native
+runtime action merely because they produced the same sysroot.
+
+The official Rust musl standard-library archives in the built-in toolchains are
+compiled with static libc. Disabling the final executable's CRT feature cannot
+rebuild that standard library, so the repository does not advertise those
+archives as dynamic musl. A consumer-provided Rust toolchain with a genuinely
+dynamic musl standard library can use the same `rust_dynamic_crt` and target
+runtime rules without changing the wrapper contract.
+
 The normalized SDK's activation and runtime-launcher execution tools are a
 separate contract again: they compile from the pinned, static Go toolchain for
 the real GNU execution CPU and do not request `//fips:toolchain_type`. This
