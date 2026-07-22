@@ -411,7 +411,7 @@ func TestPrepareFindsRuntimeSidecarThroughDeclaredPath(t *testing.T) {
 	}
 }
 
-func TestRuntimeSidecarPathLookupRejectsAmbiguousAndSidecarlessTools(t *testing.T) {
+func TestRuntimeSidecarPathLookupRejectsAmbiguousTools(t *testing.T) {
 	first := t.TempDir()
 	second := t.TempDir()
 	name := "wrapped-tool"
@@ -423,14 +423,38 @@ func TestRuntimeSidecarPathLookupRejectsAmbiguousAndSidecarlessTools(t *testing.
 	}
 
 	t.Setenv("PATH", first)
-	if _, err := executableOnDeclaredPath(name); err == nil || !strings.Contains(err.Error(), "sidecar") {
-		t.Fatalf("sidecarless lookup error = %v", err)
-	}
-	if err := os.WriteFile(firstTool+sidecarSuffix, []byte("configured\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if got, err := executableOnDeclaredPath(name); err != nil || got != firstTool {
 		t.Fatalf("declared PATH lookup = %q, %v; want %q", got, err, firstTool)
+	}
+}
+
+func TestPrepareUsesCompleteInheritedRuntimeForSidecarlessDeclaredPathTool(t *testing.T) {
+	root := t.TempDir()
+	loader := executableFixture(t, root, "lib/ld-linux.so.2")
+	program := executableFixture(t, root, "tools/erl_child_setup")
+	wrapper := executableFixture(t, root, "bin/erl_child_setup")
+	originalArgv0 := os.Args[0]
+	os.Args[0] = filepath.Base(wrapper)
+	t.Cleanup(func() { os.Args[0] = originalArgv0 })
+	t.Setenv("PATH", filepath.Dir(wrapper))
+	t.Setenv(loaderVariable, loader)
+	t.Setenv(libraryVariable, filepath.Dir(loader))
+	t.Setenv(programVariable, program)
+
+	prepared, err := prepare([]string{"1024"}, []string{
+		"PATH=" + filepath.Dir(wrapper),
+		loaderVariable + "=" + loader,
+		libraryVariable + "=" + filepath.Dir(loader),
+		programVariable + "=" + program,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.executable != loader {
+		t.Fatalf("executable = %q, want %q", prepared.executable, loader)
+	}
+	if prepared.program != program {
+		t.Fatalf("program = %q, want %q", prepared.program, program)
 	}
 }
 

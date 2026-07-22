@@ -363,14 +363,6 @@ func executableOnDeclaredPath(name string) (string, error) {
 	if len(matches) != 1 {
 		return "", fmt.Errorf("expected exactly one executable named %q on declared PATH, found %d", name, len(matches))
 	}
-	sidecar := matches[0] + sidecarSuffix
-	info, err := os.Stat(sidecar)
-	if err != nil {
-		return "", fmt.Errorf("inspect runtime sidecar %s: %w", sidecar, err)
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("runtime sidecar is not a regular file: %s", sidecar)
-	}
 	return matches[0], nil
 }
 

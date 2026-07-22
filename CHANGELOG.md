@@ -4,6 +4,16 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.6 - 2026-07-22
+
+### Fixed
+
+- Runtime launchers invoked by basename through a closed declared `PATH` may
+  inherit a complete loader, library, and program environment when no adjacent
+  sidecar exists. Ambiguous executables, incomplete environments, and host
+  fallback remain rejected, while an existing sidecar still overrides parent
+  runtime state.
+
 ## 0.3.5 - 2026-07-22
 
 ### Added
