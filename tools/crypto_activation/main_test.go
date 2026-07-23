@@ -290,12 +290,23 @@ func TestPreparePackagedLaunchRejectsWritableCopyOutsideState(t *testing.T) {
 		Schema:                    1,
 		SDKRoot:                   "{release_root}/sdk",
 		ActivationRootEnvironment: "RULES_ELIXIR_MIX_CRYPTO_STATE",
+		RuntimeEnvironment: map[string]string{
+			"RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sdk_root}/lib",
+			"RULES_FIPS_RUNTIME_LOADER":       "{sdk_root}/lib/ld-runtime.so.1",
+		},
+		RuntimeWrapper: "{sdk_root}/bin/runtime-launch",
 		WritableCopies: []writableCopyConfiguration{{
 			Source:      "{release_root}/source",
 			Destination: "{release_root}/escape",
 		}},
 	}
-	for _, relative := range []string{"sdk/lib/ld-runtime.so.1", "sdk/bin/openssl", "program", "source"} {
+	for _, relative := range []string{
+		"sdk/bin/openssl",
+		"sdk/bin/runtime-launch",
+		"sdk/lib/ld-runtime.so.1",
+		"program",
+		"source",
+	} {
 		path := filepath.Join(releaseRoot, relative)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -317,12 +328,16 @@ func TestPreparePackagedLaunchRejectsWritableCopyOutsideState(t *testing.T) {
 	if err := os.WriteFile(configPath, contents, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := preparePackagedLaunch(
+	_, _, err = preparePackagedLaunch(
 		configPath,
 		[]string{"start"},
 		[]string{"RULES_ELIXIR_MIX_CRYPTO_STATE=" + filepath.Join(releaseRoot, "state")},
-	); err == nil {
+	)
+	if err == nil {
 		t.Fatal("packaged launcher accepted a writable copy outside activation state")
+	}
+	if !strings.Contains(err.Error(), "writable-copy destination must be below activation root") {
+		t.Fatalf("packaged launcher failed before validating the writable-copy boundary: %v", err)
 	}
 }
 
