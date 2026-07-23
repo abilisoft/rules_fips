@@ -125,12 +125,15 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 			"-out", "{activation_root}/fipsmodule.cnf",
 		},
 		RuntimeEnvironment: map[string]string{
-			"FIPS_MODULE_CONF": "{activation_root}/fipsmodule.cnf",
-			"OPENSSL_CONF":     "{sdk_root}/ssl/openssl.cnf",
-			"OPENSSL_MODULES":  "{sdk_root}/lib/ossl-modules",
+			"FIPS_MODULE_CONF":                "{activation_root}/fipsmodule.cnf",
+			"OPENSSL_CONF":                    "{sdk_root}/ssl/openssl.cnf",
+			"OPENSSL_MODULES":                 "{sdk_root}/lib/ossl-modules",
+			"RULES_FIPS_RUNTIME_LIBRARY_PATH": "{sdk_root}/lib",
+			"RULES_FIPS_RUNTIME_LOADER":       "{sdk_root}/lib/ld-runtime.so.1",
 		},
-		Program:   "{release_root}/erts-17.0/bin/erlexec",
-		Arguments: []string{"-crypto", "fips_mode", "true"},
+		RuntimeWrapper: "{sdk_root}/bin/runtime-launch",
+		Program:        "{release_root}/erts-17.0/bin/erlexec",
+		Arguments:      []string{"-crypto", "fips_mode", "true"},
 		Environment: map[string]string{
 			"ROOTDIR": "{release_root}",
 		},
@@ -138,6 +141,10 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 			Source:      "{release_root}/releases/1.0.0/sys.config",
 			Destination: "{activation_root}/sys.config",
 		}},
+	}
+	runtimeWrapper := filepath.Join(sdkRoot, "bin", "runtime-launch")
+	if err := os.WriteFile(runtimeWrapper, []byte("fixture"), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	contents, err := json.Marshal(config)
 	if err != nil {
@@ -170,11 +177,11 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 	if !slices.Contains(activation.arguments, filepath.Join(state, "fipsmodule.cnf")) {
 		t.Fatalf("activation arguments did not expand state: %v", activation.arguments)
 	}
-	if runtime.executable != filepath.Join(sdkRoot, "lib", "ld-runtime.so.1") {
+	if runtime.executable != runtimeWrapper {
 		t.Fatalf("runtime executable = %q", runtime.executable)
 	}
-	if !slices.Contains(runtime.arguments, program) {
-		t.Fatalf("runtime arguments did not select release program: %v", runtime.arguments)
+	if !slices.Contains(runtime.environment, "RULES_FIPS_RUNTIME_PROGRAM="+program) {
+		t.Fatalf("runtime environment did not select release program: %v", runtime.environment)
 	}
 	for _, expected := range []string{
 		"FIPS_MODULE_CONF=" + filepath.Join(state, "fipsmodule.cnf"),
@@ -198,6 +205,82 @@ func TestPreparePackagedLaunchActivatesBeforeDeclaredRuntime(t *testing.T) {
 	}
 	if string(contents) != "runtime config" {
 		t.Fatalf("writable runtime copy = %q", contents)
+	}
+}
+
+func TestPreparePackagedLaunchUsesDeclaredRuntimeWithoutActivation(t *testing.T) {
+	releaseRoot := t.TempDir()
+	sdkRoot := filepath.Join(releaseRoot, ".rules_elixir_mix", "crypto_sdk")
+	loader := filepath.Join(sdkRoot, "usr", "lib64", "ld-linux-x86-64.so.2")
+	program := filepath.Join(releaseRoot, "erts-17.0", "bin", "erlexec")
+	for _, path := range []string{loader, program} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("fixture"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	config := launchConfiguration{
+		Schema:                    1,
+		Command:                   "start",
+		SDKRoot:                   "{release_root}/.rules_elixir_mix/crypto_sdk",
+		ActivationRootEnvironment: "RULES_ELIXIR_MIX_CRYPTO_STATE",
+		RuntimeEnvironment: map[string]string{
+			"OPENSSL_CONF":                     "{sdk_root}/etc/pki/tls/openssl.cnf",
+			"RULES_FIPS_RUNTIME_INHIBIT_CACHE": "true",
+			"RULES_FIPS_RUNTIME_LIBRARY_PATH":  "{sdk_root}/usr/lib64",
+			"RULES_FIPS_RUNTIME_LOADER":        "{sdk_root}/usr/lib64/ld-linux-x86-64.so.2",
+		},
+		RuntimeWrapper: "{sdk_root}/bin/runtime-launch",
+		Program:        "{release_root}/erts-17.0/bin/erlexec",
+	}
+	runtimeWrapper := filepath.Join(sdkRoot, "bin", "runtime-launch")
+	if err := os.MkdirAll(filepath.Dir(runtimeWrapper), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runtimeWrapper, []byte("fixture"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(releaseRoot, "bin", "app"+launchConfigSuffix)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, contents, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	activation, runtime, err := preparePackagedLaunch(
+		configPath,
+		[]string{"start"},
+		[]string{"RULES_ELIXIR_MIX_CRYPTO_STATE=" + filepath.Join(releaseRoot, "state")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activation.executable != "" {
+		t.Fatalf("activation executable = %q, want none", activation.executable)
+	}
+	if runtime.executable != runtimeWrapper {
+		t.Fatalf("runtime executable = %q, want %q", runtime.executable, runtimeWrapper)
+	}
+	if !slices.Equal(runtime.arguments, []string{runtimeWrapper}) {
+		t.Fatalf("runtime arguments = %v, want only declared wrapper", runtime.arguments)
+	}
+	for _, expected := range []string{
+		"RULES_FIPS_RUNTIME_INHIBIT_CACHE=true",
+		"RULES_FIPS_RUNTIME_LIBRARY_PATH=" + filepath.Join(sdkRoot, "usr", "lib64"),
+		"RULES_FIPS_RUNTIME_LOADER=" + loader,
+		"RULES_FIPS_RUNTIME_PROGRAM=" + program,
+	} {
+		if !slices.Contains(runtime.environment, expected) {
+			t.Fatalf("runtime environment missing %q: %v", expected, runtime.environment)
+		}
 	}
 }
 

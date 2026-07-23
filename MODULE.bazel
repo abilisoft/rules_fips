@@ -1,16 +1,95 @@
 module(
     name = "rules_fips",
-    version = "0.3.8",
+    version = "0.3.9",
     bazel_compatibility = [">=9.2.0"],
 )
 
 bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.3", dev_dependency = True)
 
+bazel_dep(name = "bazeldnf", version = "v0.99.2-rc1")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_perl", version = "1.1.2")
 bazel_dep(name = "rules_rust", version = "0.71.3")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+
+_UBI10_AMD64_PACKAGES = [
+    "crypto-policies",
+    "gcc",
+    "glibc",
+    "glibc-devel",
+    "kernel-headers",
+    "libgcc",
+    "libgomp",
+    "libstdc++",
+    "libstdc++-devel",
+    "libxcrypt",
+    "libxcrypt-devel",
+    "openssl",
+    "openssl-devel",
+    "openssl-fips-provider",
+    "openssl-fips-provider-so",
+    "openssl-libs",
+    "zlib-ng-compat",
+]
+
+_UBI10_ARM64_PACKAGES = _UBI10_AMD64_PACKAGES + [
+    "libasan",
+    "libatomic",
+    "libubsan",
+]
+
+ubi_rpms = use_extension("//fips:ubi_repositories.bzl", "ubi_rpms")
+ubi_rpms.import_lock(
+    name = "ubi10_amd64",
+    lock_file = "//fips:ubi10_amd64.lock.json",
+    packages = _UBI10_AMD64_PACKAGES,
+)
+ubi_rpms.import_lock(
+    name = "ubi10_arm64",
+    lock_file = "//fips:ubi10_arm64.lock.json",
+    packages = _UBI10_ARM64_PACKAGES,
+)
+use_repo(
+    ubi_rpms,
+    "ubi10_amd64_crypto_policies",
+    "ubi10_amd64_gcc",
+    "ubi10_amd64_glibc",
+    "ubi10_amd64_glibc_devel",
+    "ubi10_amd64_kernel_headers",
+    "ubi10_amd64_libgcc",
+    "ubi10_amd64_libgomp",
+    "ubi10_amd64_libstdcpp",
+    "ubi10_amd64_libstdcpp_devel",
+    "ubi10_amd64_libxcrypt",
+    "ubi10_amd64_libxcrypt_devel",
+    "ubi10_amd64_openssl",
+    "ubi10_amd64_openssl_devel",
+    "ubi10_amd64_openssl_fips_provider",
+    "ubi10_amd64_openssl_fips_provider_so",
+    "ubi10_amd64_openssl_libs",
+    "ubi10_amd64_zlib_ng_compat",
+    "ubi10_arm64_crypto_policies",
+    "ubi10_arm64_gcc",
+    "ubi10_arm64_glibc",
+    "ubi10_arm64_glibc_devel",
+    "ubi10_arm64_kernel_headers",
+    "ubi10_arm64_libasan",
+    "ubi10_arm64_libatomic",
+    "ubi10_arm64_libgcc",
+    "ubi10_arm64_libgomp",
+    "ubi10_arm64_libstdcpp",
+    "ubi10_arm64_libstdcpp_devel",
+    "ubi10_arm64_libubsan",
+    "ubi10_arm64_libxcrypt",
+    "ubi10_arm64_libxcrypt_devel",
+    "ubi10_arm64_openssl",
+    "ubi10_arm64_openssl_devel",
+    "ubi10_arm64_openssl_fips_provider",
+    "ubi10_arm64_openssl_fips_provider_so",
+    "ubi10_arm64_openssl_libs",
+    "ubi10_arm64_zlib_ng_compat",
+)
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust", dev_dependency = True)
 
@@ -457,6 +536,8 @@ register_toolchains(
     "//fips/toolchains:glibc_cc_amd64_toolchain",
     "//fips/toolchains:glibc_cc_arm64_toolchain",
     "//fips/toolchains:glibc_cc_arm64_native_toolchain",
+    "//fips/toolchains:ubi10_cc_amd64_toolchain",
+    "//fips/toolchains:ubi10_cc_arm64_toolchain",
     "//fips/toolchains:foreign_cc_amd64_toolchain",
     "//fips/toolchains:foreign_cc_arm64_toolchain",
     "//fips/toolchains:foreign_cc_arm64_native_toolchain",
@@ -468,4 +549,6 @@ register_toolchains(
     "//fips/toolchains:linux_arm64_glibc_cross_toolchain",
     "//fips/toolchains:linux_arm64_glibc_native_toolchain",
     "//fips/toolchains:linux_arm64_native_toolchain",
+    "//fips/toolchains:linux_amd64_ubi10_toolchain",
+    "//fips/toolchains:linux_arm64_ubi10_cross_toolchain",
 )

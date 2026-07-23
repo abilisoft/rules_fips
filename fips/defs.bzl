@@ -1,6 +1,10 @@
 """Public API for rules_fips."""
 
-load("//fips:crypto_sdk.bzl", _fips_crypto_sdk = "fips_crypto_sdk")
+load(
+    "//fips:crypto_sdk.bzl",
+    _fips_crypto_sdk = "fips_crypto_sdk",
+    _fips_ubi_crypto_sdk = "fips_ubi_crypto_sdk",
+)
 load("//fips:foreign_crypto.bzl", _openssl_fips = "openssl_fips")
 load("//fips:pkg_config.bzl", _target_pkg_config_sdk = "target_pkg_config_sdk")
 load(
@@ -9,6 +13,7 @@ load(
     _FipsCryptoSdkInfo = "FipsCryptoSdkInfo",
     _FipsPlatformInfo = "FipsPlatformInfo",
     _TargetPkgConfigSdkInfo = "TargetPkgConfigSdkInfo",
+    _UbiRpmTreeInfo = "UbiRpmTreeInfo",
 )
 load("//fips:rust_adapter.bzl", _fips_rust_toolchain = "fips_rust_toolchain")
 load(
@@ -21,8 +26,10 @@ FipsCryptoInfo = _FipsCryptoInfo
 FipsCryptoSdkInfo = _FipsCryptoSdkInfo
 FipsPlatformInfo = _FipsPlatformInfo
 TargetPkgConfigSdkInfo = _TargetPkgConfigSdkInfo
+UbiRpmTreeInfo = _UbiRpmTreeInfo
 openssl_fips = _openssl_fips
 fips_crypto_sdk = _fips_crypto_sdk
+fips_ubi_crypto_sdk = _fips_ubi_crypto_sdk
 fips_rust_toolchain = _fips_rust_toolchain
 hermetic_target_runtime_test = _hermetic_target_runtime_test
 hermetic_target_runtime_tool = _hermetic_target_runtime_tool

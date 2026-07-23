@@ -7,9 +7,11 @@ in generated shell.
 
 ```mermaid
 flowchart LR
-    S[Pinned source catalog or exact overrides] --> C[OpenSSL core and FIPS provider]
+    S[Pinned source catalog or exact overrides] --> C[Source-built OpenSSL core and FIPS provider]
+    U[Checksum-locked UBI RPM tree] --> N[Distribution OpenSSL and FIPS policy]
     T[Pinned musl/glibc sysroots and LLVM toolchains] --> C
     C --> V[Architecture, provider, and integrity checks]
+    N --> V
     V --> D[Normalized build SDK]
     V --> R[Explicit deployment payload]
     V --> J[JSON evidence]
@@ -30,9 +32,19 @@ flowchart LR
 6. Static native tools implement provider activation and execution through the
    SDK-owned loader without invoking a shell.
 
+The UBI profile takes a parallel input path: a pure module extension imports
+only checksum-locked RPM repositories, `rpmtree` merges their declared
+contents, and a Starlark action projects the exact runtime payload. It consumes
+the distribution's configured provider and policy file without running
+`fipsinstall`. No package manager or mutable installation script runs during
+repository evaluation or an SDK action.
+
 Supported targets are AMD64 and Arm64 with either musl 1.2.5 or a glibc 2.35
 ABI baseline. Arm64 may build natively or cross-build on AMD64. Cross-built
 provider checks use pinned QEMU; no native-hardware claim is implied by them.
+The additive UBI 10 profile models its concrete glibc 2.39 ABI and package
+policy separately; generic glibc targets never acquire a distribution
+constraint.
 
 ## Linkage boundary
 
@@ -44,13 +56,20 @@ consumer + static libcrypto.a
                          └── SDK-owned loader + libc runtime
 ```
 
-The OpenSSL build produces static `libcrypto.a` and `libssl.a`. `fips.so` is
+The source OpenSSL build produces static `libcrypto.a` and `libssl.a`.
+`fips.so` is
 deliberately not folded into another binary: it is the provider module whose
 identity and integrity configuration are checked at runtime. The normalized
 contract therefore reports `fully_static = False` and exposes every runtime
 file and environment template explicitly. A language consumer decides how to
 link the static core and package the provider; rules_fips never claims that the
 consumer is validated.
+
+The UBI profile instead supplies its declared `libcrypto.so.3` and
+`libssl.so.3`. Consumers select dynamic SSL linkage explicitly and package the
+loader, both libraries, provider, policy configuration, and transitive runtime
+closure. The two linkage profiles share the normalized SDK shape but never
+silently substitute for one another.
 
 ## Startup enforcement
 
@@ -68,8 +87,10 @@ sequenceDiagram
     P->>P: consumer-specific fail-closed checks
 ```
 
-Activation is an engineering mechanism, not a compliance authority. Evidence
-uses `"compliance_claim": "none"`.
+Source-built provider activation is an engineering mechanism, not a compliance
+authority. The UBI profile has no activation command; its packaged launcher
+sets the declared configuration and delegates to the exact-closure runtime
+wrapper. Evidence uses `"compliance_claim": "none"`.
 
 ## Source boundary
 

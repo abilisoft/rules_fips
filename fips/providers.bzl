@@ -26,16 +26,33 @@ FipsCryptoSdkInfo = provider(
         "activation_tool_release_path": "SDK-relative deployment path of the activation executable.",
         "artifacts": "Named individual artifacts used to assemble deployment payloads.",
         "backend_metadata": "Opaque producer metadata; consumers must not branch on it.",
+        "build_loader_path": "SDK-relative dynamic loader used by build-time native executables.",
         "crypto": "Underlying FipsCryptoInfo provider.",
         "execution_wrapper": "Target-configured shell-free launcher for SDK-owned runtime loaders.",
         "execution_wrapper_environment": "Opaque environment templates required by execution_wrapper.",
         "execution_wrapper_release_path": "SDK-relative deployment path of execution_wrapper.",
         "fully_static": "Whether no runtime payload or activation is required.",
+        "library_dir": "SDK-relative library directory below the configured sysroot.",
         "linkopts": "Additional backend-neutral system link options required by OTP.",
+        "release_launcher": "Target-configured shell-free launcher for packaged language releases.",
+        "release_launcher_release_path": "SDK-relative deployment path of release_launcher.",
         "runtime_destinations": "SDK-relative destinations corresponding to runtime_files.",
         "runtime_environment": "Runtime environment templates rooted at {sysroot} or {activation_root}.",
         "runtime_files": "Ordered deployment payload files.",
+        "ssl_linkage": "OTP crypto linkage mode: static or dynamic.",
         "sysroot": "Directory artifact containing the complete build SDK layout.",
+        "sysroot_subdirectory": "Relative directory below sysroot passed to OTP's --with-ssl option.",
+    },
+)
+
+UbiRpmTreeInfo = provider(
+    doc = "A checksum-locked UBI RPM tree extracted by a declared bazeldnf toolchain.",
+    fields = {
+        "arch": "Canonical rules_fips architecture name.",
+        "files": "Depset containing the extracted tree artifact.",
+        "root": "Action-time path to the extracted filesystem root.",
+        "root_short_path": "Runfiles-relative path to the extracted filesystem root.",
+        "tree": "Declared directory containing the bazeldnf sandbox tree.",
     },
 )
 

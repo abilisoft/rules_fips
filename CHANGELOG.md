@@ -4,6 +4,32 @@ All notable user-facing changes are recorded here. Signed Git tags and GitHub
 releases identify the exact source; this project is not yet published to the
 Bazel Central Registry.
 
+## 0.3.9 - 2026-07-23
+
+### Added
+
+- Checksum-locked UBI 10 RPM imports expose AMD64 and Arm64 glibc sysroots,
+  headers, OpenSSL libraries, the distribution FIPS provider, policy
+  configuration, loaders, and exact runtime-library closures as normalized
+  SDK inputs.
+- `fips_ubi_crypto_sdk` exports a dynamic OpenSSL SDK whose provider is
+  distribution-configured and therefore does not run `fipsinstall`.
+- Cross-architecture SDK tests can run a target program through an
+  execution-configured launcher. The ARM64 UBI provider test uses the pinned
+  QEMU input explicitly under both Bazel Linux sandbox strategies; production
+  toolchains do not depend on emulation.
+
+### Fixed
+
+- Packaged language releases receive a dedicated SDK launcher for activation,
+  writable deployment state, and runtime environment setup. It delegates ELF
+  loading to the existing exact-closure runtime wrapper instead of duplicating
+  loader behavior.
+- UBI SDK builds and releases carry the distribution loader, OpenSSL shared
+  libraries, FIPS provider, policy configuration, and dependent runtime
+  libraries without consulting the host filesystem or running a mutable RPM
+  installation step.
+
 ## 0.3.8 - 2026-07-22
 
 ### Fixed

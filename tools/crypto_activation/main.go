@@ -15,7 +15,12 @@ import (
 	"syscall"
 )
 
-const launchConfigSuffix = ".rules_elixir_mix.crypto.json"
+const (
+	launchConfigSuffix = ".rules_elixir_mix.crypto.json"
+	libraryVariable    = "RULES_FIPS_RUNTIME_LIBRARY_PATH"
+	loaderVariable     = "RULES_FIPS_RUNTIME_LOADER"
+	programVariable    = "RULES_FIPS_RUNTIME_PROGRAM"
+)
 
 var qemuAarch64 string
 
@@ -43,6 +48,7 @@ type launchConfiguration struct {
 	ActivationRootEnvironment string                      `json:"activation_root_environment"`
 	ActivationArgs            []string                    `json:"activation_args"`
 	RuntimeEnvironment        map[string]string           `json:"runtime_environment"`
+	RuntimeWrapper            string                      `json:"runtime_wrapper"`
 	Program                   string                      `json:"program"`
 	Arguments                 []string                    `json:"arguments"`
 	Environment               map[string]string           `json:"environment"`
@@ -57,21 +63,23 @@ func main() {
 			fmt.Fprintf(os.Stderr, "crypto activation: %v\n", err)
 			os.Exit(78)
 		}
-		if err := ensureOutputParent(activation.arguments[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "crypto activation: %v\n", err)
-			os.Exit(78)
-		}
-		process := &exec.Cmd{
-			Path:   activation.executable,
-			Args:   activation.arguments,
-			Env:    activation.environment,
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		}
-		if err := process.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "crypto activation: packaged activation failed: %v\n", err)
-			os.Exit(78)
+		if activation.executable != "" {
+			if err := ensureOutputParent(activation.arguments[1:]); err != nil {
+				fmt.Fprintf(os.Stderr, "crypto activation: %v\n", err)
+				os.Exit(78)
+			}
+			process := &exec.Cmd{
+				Path:   activation.executable,
+				Args:   activation.arguments,
+				Env:    activation.environment,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+			if err := process.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "crypto activation: packaged activation failed: %v\n", err)
+				os.Exit(78)
+			}
 		}
 		if err := materializeWritableCopies(runtime.writableCopies); err != nil {
 			fmt.Fprintf(os.Stderr, "crypto activation: %v\n", err)
@@ -157,43 +165,52 @@ func preparePackagedLaunch(configPath string, arguments, environment []string) (
 		return strings.ReplaceAll(value, "{activation_root}", activationRoot)
 	}
 
-	activationArgs := make([]string, len(config.ActivationArgs))
-	for index, value := range config.ActivationArgs {
-		activationArgs[index] = expand(value)
-	}
-	activation, err := prepare(activationArgs, environment)
-	if err != nil {
-		return command{}, command{}, fmt.Errorf("prepare packaged activation: %w", err)
+	activation := command{}
+	if len(config.ActivationArgs) > 0 {
+		activationArgs := make([]string, len(config.ActivationArgs))
+		for index, value := range config.ActivationArgs {
+			activationArgs[index] = expand(value)
+		}
+		activation, err = prepare(activationArgs, environment)
+		if err != nil {
+			return command{}, command{}, fmt.Errorf("prepare packaged activation: %w", err)
+		}
 	}
 
 	program := expand(config.Program)
 	if err := requireExecutable("packaged runtime program", program); err != nil {
 		return command{}, command{}, err
 	}
-	loader := filepath.Join(sdkRoot, "lib", "ld-runtime.so.1")
+	runtimeValues := make(map[string]string, len(config.RuntimeEnvironment))
+	for key, value := range config.RuntimeEnvironment {
+		runtimeValues[key] = expand(value)
+	}
+	loader, err := requiredRuntimeValue(runtimeValues, loaderVariable)
+	if err != nil {
+		return command{}, command{}, err
+	}
 	if err := requireExecutable("runtime loader", loader); err != nil {
 		return command{}, command{}, err
 	}
-	runtimeArgs := []string{
-		loader,
-		"--library-path", filepath.Join(sdkRoot, "lib"),
-		"--argv0", filepath.Base(configPath),
-		program,
+	if _, err := requiredRuntimeValue(runtimeValues, libraryVariable); err != nil {
+		return command{}, command{}, err
 	}
+	runtimeWrapper := expand(config.RuntimeWrapper)
+	if err := requireExecutable("packaged runtime wrapper", runtimeWrapper); err != nil {
+		return command{}, command{}, err
+	}
+	runtimeArgs := []string{runtimeWrapper}
 	for _, value := range config.Arguments {
 		runtimeArgs = append(runtimeArgs, expand(value))
 	}
-	runtimeExecutable, runtimeArgs, err := loaderExecutable(loader, runtimeArgs)
-	if err != nil {
-		return command{}, command{}, fmt.Errorf("prepare packaged runtime: %w", err)
-	}
 	replacements := make(map[string]string, len(config.RuntimeEnvironment)+len(config.Environment))
-	for key, value := range config.RuntimeEnvironment {
-		replacements[key] = expand(value)
+	for key, value := range runtimeValues {
+		replacements[key] = value
 	}
 	for key, value := range config.Environment {
 		replacements[key] = expand(value)
 	}
+	replacements[programVariable] = program
 	removals := append([]string{
 		"FIPS_MODULE_CONF", "LD_LIBRARY_PATH", "LD_PRELOAD", "OPENSSL_CONF", "OPENSSL_MODULES",
 	}, config.UnsetEnvironment...)
@@ -221,11 +238,19 @@ func preparePackagedLaunch(configPath string, arguments, environment []string) (
 		})
 	}
 	return activation, command{
-		executable:     runtimeExecutable,
+		executable:     runtimeWrapper,
 		arguments:      runtimeArgs,
 		environment:    runtimeEnvironment,
 		writableCopies: writableCopies,
 	}, nil
+}
+
+func requiredRuntimeValue(environment map[string]string, name string) (string, error) {
+	value := environment[name]
+	if value == "" {
+		return "", fmt.Errorf("%s is required", name)
+	}
+	return value, nil
 }
 
 func requireRegularFile(description, path string) error {

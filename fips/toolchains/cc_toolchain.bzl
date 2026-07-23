@@ -23,6 +23,7 @@ load(
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
+load("//fips:providers.bzl", "UbiRpmTreeInfo")
 
 def _bootlin_toolchain_paths(marker, target_triplet, gcc_version):
     suffix = "/{}/sysroot/usr/include/stdio.h".format(target_triplet)
@@ -42,8 +43,7 @@ def _clang_resource_root(marker):
         fail("Clang resource marker must end in {}".format(suffix))
     return marker.path.removesuffix(suffix)
 
-def _fips_bootlin_cc_toolchain_config_impl(ctx):
-    paths = _bootlin_toolchain_paths(ctx.file.sysroot_marker, ctx.attr.target_triplet, ctx.attr.gcc_version)
+def _fips_cc_toolchain_config_impl(ctx, paths):
     action_sysroot = paths.sysroot
     action_gcc_root = paths.gcc_root
     action_gcc_lib = paths.gcc_lib
@@ -102,6 +102,10 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
     ]
     link_actions = CC_LINK_EXECUTABLE_ACTION_NAMES + DYNAMIC_LIBRARY_LINK_ACTION_NAMES
     compile_and_link_actions = compiler_actions + CC_LINK_EXECUTABLE_ACTION_NAMES + DYNAMIC_LIBRARY_LINK_ACTION_NAMES
+    static_compiler_runtime_flags = [
+        "-static-libgcc",
+        "-static-libstdc++",
+    ] if ctx.attr.static_compiler_runtime else []
     features = [
         feature(name = "supports_pic", enabled = True),
         feature(name = "supports_start_end_lib", enabled = True),
@@ -142,9 +146,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
             enabled = True,
             flag_sets = [flag_set(
                 actions = DYNAMIC_LIBRARY_LINK_ACTION_NAMES,
-                flag_groups = [flag_group(flags = [
-                    "-static-libgcc",
-                    "-static-libstdc++",
+                flag_groups = [flag_group(flags = static_compiler_runtime_flags + [
                     # Loadable NIFs and proc macros must not acquire a missing
                     # dependency from the worker's default library paths.
                     "-Wl,-z,nodefaultlib",
@@ -168,9 +170,7 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
                 enabled = True,
                 flag_sets = [flag_set(
                     actions = CC_LINK_EXECUTABLE_ACTION_NAMES,
-                    flag_groups = [flag_group(flags = [
-                        "-static-libgcc",
-                        "-static-libstdc++",
+                    flag_groups = [flag_group(flags = static_compiler_runtime_flags + [
                         # A dynamic executable is never started directly. Its
                         # declared runtime wrapper invokes the packaged loader
                         # with an explicit library path. Keep direct exec
@@ -289,6 +289,19 @@ def _fips_bootlin_cc_toolchain_config_impl(ctx):
         tool_paths = [],
     )]
 
+def _fips_bootlin_cc_toolchain_config_impl(ctx):
+    paths = _bootlin_toolchain_paths(ctx.file.sysroot_marker, ctx.attr.target_triplet, ctx.attr.gcc_version)
+    return _fips_cc_toolchain_config_impl(ctx, paths)
+
+def _fips_ubi_cc_toolchain_config_impl(ctx):
+    root = ctx.attr.sysroot[UbiRpmTreeInfo].root
+    return _fips_cc_toolchain_config_impl(ctx, struct(
+        cxx_root = root + "/usr/include/c++/" + ctx.attr.gcc_version,
+        gcc_lib = root + "/usr/lib/gcc/" + ctx.attr.target_triplet + "/" + ctx.attr.gcc_version,
+        gcc_root = root + "/usr",
+        sysroot = root,
+    ))
+
 fips_bootlin_cc_toolchain_config = rule(
     implementation = _fips_bootlin_cc_toolchain_config_impl,
     attrs = {
@@ -308,7 +321,34 @@ fips_bootlin_cc_toolchain_config = rule(
         "resource_marker": attr.label(allow_single_file = True, mandatory = True),
         "strip": attr.label(allow_single_file = True, mandatory = True),
         "ssp_runtime": attr.label(allow_single_file = [".a"]),
+        "static_compiler_runtime": attr.bool(default = True),
         "sysroot_marker": attr.label(allow_single_file = True, mandatory = True),
+        "target_triplet": attr.string(mandatory = True),
+    },
+    provides = [CcToolchainConfigInfo],
+)
+
+fips_ubi_cc_toolchain_config = rule(
+    implementation = _fips_ubi_cc_toolchain_config_impl,
+    attrs = {
+        "abi_libc_version": attr.string(mandatory = True),
+        "abi_version": attr.string(mandatory = True),
+        "arch": attr.string(mandatory = True),
+        "ar": attr.label(allow_single_file = True, mandatory = True),
+        "clang": attr.label(allow_single_file = True, mandatory = True),
+        "compiler_runtime": attr.label(allow_single_file = [".a"], mandatory = True),
+        "dynamic_loader": attr.string(),
+        "gcc_version": attr.string(mandatory = True),
+        "ld": attr.label(allow_single_file = True, mandatory = True),
+        "libc": attr.string(mandatory = True),
+        "nm": attr.label(allow_single_file = True, mandatory = True),
+        "objcopy": attr.label(allow_single_file = True, mandatory = True),
+        "objdump": attr.label(allow_single_file = True, mandatory = True),
+        "resource_marker": attr.label(allow_single_file = True, mandatory = True),
+        "ssp_runtime": attr.label(allow_single_file = [".a"]),
+        "static_compiler_runtime": attr.bool(default = True),
+        "strip": attr.label(allow_single_file = True, mandatory = True),
+        "sysroot": attr.label(mandatory = True, providers = [UbiRpmTreeInfo]),
         "target_triplet": attr.string(mandatory = True),
     },
     provides = [CcToolchainConfigInfo],
