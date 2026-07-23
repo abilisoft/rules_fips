@@ -1,0 +1,1101 @@
+{
+	"cli-arguments": [
+		"-r",
+		"fips/ubi10_repositories.yaml",
+		"--lockfile",
+		"fips/ubi10_amd64.lock.json",
+		"crypto-policies",
+		"gcc",
+		"gcc-c++",
+		"glibc-devel",
+		"kernel-headers",
+		"libstdc++-devel",
+		"openssl",
+		"openssl-devel",
+		"openssl-fips-provider",
+		"zlib-devel",
+		"--arch",
+		"x86_64",
+		"--ignore-missing"
+	],
+	"name": "",
+	"repositories": {
+		"ubi10-appstream-x86_64": [
+			"https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/x86_64/appstream/os"
+		],
+		"ubi10-baseos-x86_64": [
+			"https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/x86_64/baseos/os"
+		]
+	},
+	"rpms": [
+		{
+			"id": "alternatives",
+			"name": "alternatives",
+			"integrity": "sha256-odfYfpCzmtRPbZyLVRHGrCPpPv2owMEeAhvZ4O097G8=",
+			"urls": [
+				"Packages/a/alternatives-1.30-2.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "audit-libs",
+			"name": "audit-libs",
+			"integrity": "sha256-GHCzBMMAJHELu778xdITEP6HEGcxvsKEvpz7YBp+veQ=",
+			"urls": [
+				"Packages/a/audit-libs-4.0.3-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libcap-ng"
+			]
+		},
+		{
+			"id": "basesystem",
+			"name": "basesystem",
+			"integrity": "sha256-TPrru4USZ7VFNFriRrfXrZjwIIKu7syV1izbQI10IhU=",
+			"urls": [
+				"Packages/b/basesystem-11-22.el10.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"filesystem",
+				"setup"
+			]
+		},
+		{
+			"id": "bash",
+			"name": "bash",
+			"integrity": "sha256-TPTRYeeyXxI8+WUyk6Amljc0McXM/Q+U8FsjYAWVwAo=",
+			"urls": [
+				"Packages/b/bash-5.2.26-6.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"filesystem",
+				"glibc",
+				"ncurses-libs"
+			]
+		},
+		{
+			"id": "binutils",
+			"name": "binutils",
+			"integrity": "sha256-bJpbMehVohaEWFi0xkL2f+Mc/T3/WqXWPo7P+WOQTAw=",
+			"urls": [
+				"Packages/b/binutils-2.41-63.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"alternatives",
+				"bash",
+				"binutils-gold",
+				"coreutils-single",
+				"elfutils-debuginfod-client",
+				"glibc",
+				"jansson",
+				"libgcc",
+				"libstdc++",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "binutils-gold",
+			"name": "binutils-gold",
+			"integrity": "sha256-2icqzeS85LhCHDtayZQPC9ip89iBdnaeBWh9Wc5wBVI=",
+			"urls": [
+				"Packages/b/binutils-gold-2.41-63.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"binutils",
+				"glibc",
+				"jansson",
+				"libgcc",
+				"libstdc++",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "bzip2-libs",
+			"name": "bzip2-libs",
+			"integrity": "sha256-TwIEXij66+qkDU4mEWp0SthiBe7YUD8cvCdFT86LVK0=",
+			"urls": [
+				"Packages/b/bzip2-libs-1.0.8-25.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "ca-certificates",
+			"name": "ca-certificates",
+			"integrity": "sha256-NK8fbmd6N6o/WQC/CvcB3WUs1OR/Kj9av1rbpBtsOUk=",
+			"urls": [
+				"Packages/c/ca-certificates-2025.2.80_v9.0.305-102.el10_1.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"coreutils-single",
+				"findutils",
+				"grep",
+				"libffi",
+				"p11-kit-trust",
+				"sed"
+			]
+		},
+		{
+			"id": "coreutils-single",
+			"name": "coreutils-single",
+			"integrity": "sha256-efojvBScPQMybncbUJaE/K3qhdTDfad9sMwhs8Q5SBc=",
+			"urls": [
+				"Packages/c/coreutils-single-9.5-8.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libacl",
+				"libattr",
+				"libcap",
+				"libselinux"
+			]
+		},
+		{
+			"id": "cpp",
+			"name": "cpp",
+			"integrity": "sha256-UqMO+L/OBaOlQX8Z6xQcVmwz0XiRwjr5PSmydEEE7Xw=",
+			"urls": [
+				"Packages/c/cpp-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"filesystem",
+				"glibc",
+				"gmp",
+				"libmpc",
+				"libzstd",
+				"mpfr",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "crypto-policies",
+			"name": "crypto-policies",
+			"integrity": "sha256-Jp0cMQC95mokLXbFMIR1vQBZ+Q9kSslRKwzTmEpJlO4=",
+			"urls": [
+				"Packages/c/crypto-policies-20260216-1.git0e54016.el10.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash"
+			]
+		},
+		{
+			"id": "elfutils-debuginfod-client",
+			"name": "elfutils-debuginfod-client",
+			"integrity": "sha256-QdgoPqi2Q4NqoYhaecVZGYhdIAm98x2Bs1wXmHfZpIM=",
+			"urls": [
+				"Packages/e/elfutils-debuginfod-client-0.194-2.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"elfutils-libelf",
+				"elfutils-libs",
+				"glibc",
+				"json-c",
+				"libcurl-minimal",
+				"openssl-libs"
+			]
+		},
+		{
+			"id": "elfutils-default-yama-scope",
+			"name": "elfutils-default-yama-scope",
+			"integrity": "sha256-9UsGqKchst0OtGUHCBNBHbTc/DscdnileemSQIWpdos=",
+			"urls": [
+				"Packages/e/elfutils-default-yama-scope-0.194-2.el10_2.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash"
+			]
+		},
+		{
+			"id": "elfutils-libelf",
+			"name": "elfutils-libelf",
+			"integrity": "sha256-WWv3ZHIcw+hbDxOJ2PW17pKLUHTrPeMvR0l4ppoB460=",
+			"urls": [
+				"Packages/e/elfutils-libelf-0.194-2.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libzstd",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "elfutils-libs",
+			"name": "elfutils-libs",
+			"integrity": "sha256-FNc+fxb+iuVtXu1FtrZJlvDOp2Q/gkld7/3/iqpt9BI=",
+			"urls": [
+				"Packages/e/elfutils-libs-0.194-2.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bzip2-libs",
+				"elfutils-default-yama-scope",
+				"elfutils-libelf",
+				"glibc",
+				"libzstd",
+				"xz-libs",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "filesystem",
+			"name": "filesystem",
+			"integrity": "sha256-l6V1GWUPISKzClHbmoWNl36Gb39vK0OVSM1biUIv6CE=",
+			"urls": [
+				"Packages/f/filesystem-3.18-17.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"setup"
+			]
+		},
+		{
+			"id": "findutils",
+			"name": "findutils",
+			"integrity": "sha256-XlWoV8y+Wnh41dYLcAZtRM1eUfY+OP96ZLdGLpU4/jA=",
+			"urls": [
+				"Packages/f/findutils-4.10.0-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libselinux"
+			]
+		},
+		{
+			"id": "gawk",
+			"name": "gawk",
+			"integrity": "sha256-VLB/ouufSqPel2YbZuhu1lodRvwvHrgNQs0tkBwAJvc=",
+			"urls": [
+				"Packages/g/gawk-5.3.0-6.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"filesystem",
+				"glibc",
+				"gmp",
+				"mpfr",
+				"readline"
+			]
+		},
+		{
+			"id": "gcc",
+			"name": "gcc",
+			"integrity": "sha256-zLplSj0kDio6PEocPC+LGtuEHbT2mHnII2E3NUdnZdE=",
+			"urls": [
+				"Packages/g/gcc-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"bash",
+				"binutils",
+				"cpp",
+				"glibc",
+				"glibc-devel",
+				"gmp",
+				"libgcc",
+				"libgomp",
+				"libmpc",
+				"libzstd",
+				"make",
+				"mpfr",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "gcc-c++",
+			"name": "gcc-c++",
+			"integrity": "sha256-4/wFV+pZod5PPuslM9/RvkQnUTO6Njx5am9VwvgcTMA=",
+			"urls": [
+				"Packages/g/gcc-c++-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"gcc",
+				"glibc",
+				"gmp",
+				"libmpc",
+				"libstdc++",
+				"libstdc++-devel",
+				"libzstd",
+				"mpfr",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "glibc",
+			"name": "glibc",
+			"integrity": "sha256-UqvKHB4/oYUyYx16mVwsGTc54iZWm8Y2atNy9geWWZ8=",
+			"urls": [
+				"Packages/g/glibc-2.39-128.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"basesystem",
+				"glibc-all-langpacks",
+				"glibc-common",
+				"libgcc"
+			]
+		},
+		{
+			"id": "glibc-all-langpacks",
+			"name": "glibc-all-langpacks",
+			"integrity": "sha256-R2eOSiELLJaTrsUbhMUfHOc1PVUUBr0NHtiDVKZkeVo=",
+			"urls": [
+				"Packages/g/glibc-all-langpacks-2.39-128.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"glibc-common"
+			]
+		},
+		{
+			"id": "glibc-common",
+			"name": "glibc-common",
+			"integrity": "sha256-GARKuDGNl0tUzT74EjQKfMRCQs0y/D20W5CBbc7uc3I=",
+			"urls": [
+				"Packages/g/glibc-common-2.39-128.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"glibc"
+			]
+		},
+		{
+			"id": "glibc-devel",
+			"name": "glibc-devel",
+			"integrity": "sha256-5VZ5eEcdZEfkG5Iajj2VSRKS5LbaFIer87h+gLL5BXo=",
+			"urls": [
+				"Packages/g/glibc-devel-2.39-128.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"glibc",
+				"kernel-headers",
+				"libxcrypt-devel"
+			]
+		},
+		{
+			"id": "gmp",
+			"name": "gmp",
+			"integrity": "sha256-Ex5YG0TMu1CraBcz4z5mlFrSXr6o+XwaRIteHt2fs5A=",
+			"urls": [
+				"Packages/g/gmp-6.2.1-12.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "grep",
+			"name": "grep",
+			"integrity": "sha256-oa6DgItDQR25rfFaBVqDBYiDBOa1Df9nLfIheS3Uv4c=",
+			"urls": [
+				"Packages/g/grep-3.11-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"glibc",
+				"pcre2"
+			]
+		},
+		{
+			"id": "jansson",
+			"name": "jansson",
+			"integrity": "sha256-tdbu6hSWH2Ts6LO77+tTphQkgizLrtuDP3/H5Q9nB8U=",
+			"urls": [
+				"Packages/j/jansson-2.14-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "json-c",
+			"name": "json-c",
+			"integrity": "sha256-txx4sM0Tiue/andXIZnl3avYHazEjcul778xfdtC1B4=",
+			"urls": [
+				"Packages/j/json-c-0.18-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "kernel-headers",
+			"name": "kernel-headers",
+			"integrity": "sha256-aWP0GCoPb3FFKp8zYbVmhT4VTUydnHHZKHYMkSVY3kE=",
+			"urls": [
+				"Packages/k/kernel-headers-6.12.0-211.37.1.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "keyutils-libs",
+			"name": "keyutils-libs",
+			"integrity": "sha256-b0erfC39rF6ghJpxSyTgjK24oaNu47/f/oNTyXNS+Pc=",
+			"urls": [
+				"Packages/k/keyutils-libs-1.6.3-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "krb5-libs",
+			"name": "krb5-libs",
+			"integrity": "sha256-Ar5ULJtkdCV47owyKPoOykqu0Oaaj2Avhd0Ysbv54V0=",
+			"urls": [
+				"Packages/k/krb5-libs-1.21.3-10.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"coreutils-single",
+				"crypto-policies",
+				"gawk",
+				"glibc",
+				"keyutils-libs",
+				"libcom_err",
+				"libselinux",
+				"libverto",
+				"openssl-libs",
+				"sed"
+			]
+		},
+		{
+			"id": "libacl",
+			"name": "libacl",
+			"integrity": "sha256-GS78IlWuBC9iz0DHi9ZI53EpGYZbv8qmKUIK5untQUA=",
+			"urls": [
+				"Packages/l/libacl-2.4.0-1.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libattr",
+			"name": "libattr",
+			"integrity": "sha256-LG9cNQx7h9Sv2k/Rr4tpWFZHKdpsLgv5hFuMrFd3/EU=",
+			"urls": [
+				"Packages/l/libattr-2.5.2-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libcap",
+			"name": "libcap",
+			"integrity": "sha256-LOw26i1kyNm86U5rVrFZeXHgwzda8k90GOg7LSIGbhg=",
+			"urls": [
+				"Packages/l/libcap-2.69-7.el10_2.1.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libgcc",
+				"pam-libs"
+			]
+		},
+		{
+			"id": "libcap-ng",
+			"name": "libcap-ng",
+			"integrity": "sha256-fH0Enz6M+ZzvIwY2MVmLP7EOqvFubzXGoCacc6uYejY=",
+			"urls": [
+				"Packages/l/libcap-ng-0.8.4-6.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libcom_err",
+			"name": "libcom_err",
+			"integrity": "sha256-FCOcdl8nuuMVz/dv/xsEn77f4pI/flCYkwExdIizWRg=",
+			"urls": [
+				"Packages/l/libcom_err-1.47.1-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libcurl-minimal",
+			"name": "libcurl-minimal",
+			"integrity": "sha256-yRxwl93czM9cOdf2UuLrqzFdX4KDOwmW3bJoFnM4bRk=",
+			"urls": [
+				"Packages/l/libcurl-minimal-8.12.1-4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"krb5-libs",
+				"libidn2",
+				"libnghttp2",
+				"openssl-libs",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "libeconf",
+			"name": "libeconf",
+			"integrity": "sha256-qPWIlBPQgRJrgsJaRVIGPNq2kYr9aDbnDH4cWa5YV6c=",
+			"urls": [
+				"Packages/l/libeconf-0.6.2-4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libffi",
+			"name": "libffi",
+			"integrity": "sha256-sVgUrlLnCUgMeX5bW7vHfyXoSDs1GMeZfCASkbkfuSg=",
+			"urls": [
+				"Packages/l/libffi-3.4.4-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libgcc",
+			"name": "libgcc",
+			"integrity": "sha256-cJZtaHXCWNAGYPsPo/v+z3aNN1O0Mq9sRqKNPLNd7n4=",
+			"urls": [
+				"Packages/l/libgcc-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "libgomp",
+			"name": "libgomp",
+			"integrity": "sha256-2qJ2ESl9Ec3lIrNQyiufnM2P48FTxyBgYUF6MU+oPd4=",
+			"urls": [
+				"Packages/l/libgomp-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libidn2",
+			"name": "libidn2",
+			"integrity": "sha256-+3iiGzHk8xtuWFDUCEVkaLxrWuJVPv72NaMuNqHhwAQ=",
+			"urls": [
+				"Packages/l/libidn2-2.3.7-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libunistring"
+			]
+		},
+		{
+			"id": "libmpc",
+			"name": "libmpc",
+			"integrity": "sha256-D/5sxKqJNuHtDYB8i7BZqGSqXLaHzehfIR89BQpFoaI=",
+			"urls": [
+				"Packages/l/libmpc-1.3.1-7.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"glibc",
+				"gmp",
+				"mpfr"
+			]
+		},
+		{
+			"id": "libnghttp2",
+			"name": "libnghttp2",
+			"integrity": "sha256-TJZb2NNxxvhkKfnPPs3xbi9H1FeJ1VKtOYF/vxUFnUg=",
+			"urls": [
+				"Packages/l/libnghttp2-1.68.0-3.el10_2.1.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libpkgconf",
+			"name": "libpkgconf",
+			"integrity": "sha256-PHceYhJWSHTrfmIA8iyy4FJl5zGZhFkMD03j61czt18=",
+			"urls": [
+				"Packages/l/libpkgconf-2.1.0-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libselinux",
+			"name": "libselinux",
+			"integrity": "sha256-aTIYYB1H8RxTeDtpG+N3llGamyVF1f5fHhtAtQx8RQM=",
+			"urls": [
+				"Packages/l/libselinux-3.10-1.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libsepol",
+				"pcre2"
+			]
+		},
+		{
+			"id": "libsepol",
+			"name": "libsepol",
+			"integrity": "sha256-gHqt7+/13eGzHLMjBch6K7Fpmwcyoij3lgi5A4e8nks=",
+			"urls": [
+				"Packages/l/libsepol-3.10-1.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libstdc++",
+			"name": "libstdc++",
+			"integrity": "sha256-PFm55Au46avwMBATV+usXBJsuM0A70P9pS/TeSXkB18=",
+			"urls": [
+				"Packages/l/libstdc++-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libgcc"
+			]
+		},
+		{
+			"id": "libstdc++-devel",
+			"name": "libstdc++-devel",
+			"integrity": "sha256-VhS6CRtr6xfTCbLr2RS1Dgk7kDq8vxIdAzqIXfbt07w=",
+			"urls": [
+				"Packages/l/libstdc++-devel-14.3.1-4.4.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"libstdc++"
+			]
+		},
+		{
+			"id": "libtasn1",
+			"name": "libtasn1",
+			"integrity": "sha256-p5azyoMn5DsFf5q6vYWkeCWvyNgbi1HQpss9gad6s0U=",
+			"urls": [
+				"Packages/l/libtasn1-4.20.0-5.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libunistring",
+			"name": "libunistring",
+			"integrity": "sha256-XybQtWhT8XbP69ScxkF2DBC9fG3Fzknm3fHFG0nVXZA=",
+			"urls": [
+				"Packages/l/libunistring-1.1-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libverto",
+			"name": "libverto",
+			"integrity": "sha256-ltXotMdJygK0H7WdECsLbhrI0hNiu9kZ20XMGquL/PE=",
+			"urls": [
+				"Packages/l/libverto-0.3.2-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libxcrypt",
+			"name": "libxcrypt",
+			"integrity": "sha256-qvPR96IyyeWD1sUpBMm2QODdPeS+gCGeqw3j1mYB2sQ=",
+			"urls": [
+				"Packages/l/libxcrypt-4.4.36-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "libxcrypt-devel",
+			"name": "libxcrypt-devel",
+			"integrity": "sha256-XpisAJXaTiO4p7DfyNb8l7D6DWxde7DXD+Hb+XrmTrY=",
+			"urls": [
+				"Packages/l/libxcrypt-devel-4.4.36-10.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"glibc-devel",
+				"libxcrypt",
+				"pkgconf-pkg-config"
+			]
+		},
+		{
+			"id": "libzstd",
+			"name": "libzstd",
+			"integrity": "sha256-HsY823MBAz8ZEwGOl1LWm+/XJDhU6FHxUIPp/8HRbuY=",
+			"urls": [
+				"Packages/l/libzstd-1.5.5-9.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "make",
+			"name": "make",
+			"integrity": "sha256-HHthwGUQbA6zqVjlX/vjdzSuvPRAsMNkNcp+tBuOARA=",
+			"urls": [
+				"Packages/m/make-4.4.1-9.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "mpfr",
+			"name": "mpfr",
+			"integrity": "sha256-2ri4ocW2dfTl6R214S+R4EJZK4FtfWkzbdhgsg5TmVw=",
+			"urls": [
+				"Packages/m/mpfr-4.2.1-8.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"gmp"
+			]
+		},
+		{
+			"id": "ncurses-base",
+			"name": "ncurses-base",
+			"integrity": "sha256-v9F0q+E9OPVRXvXZYNLPV+9cCbIain/1ifbGxv1tb+Y=",
+			"urls": [
+				"Packages/n/ncurses-base-6.4-15.20240127.el10_1.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "ncurses-libs",
+			"name": "ncurses-libs",
+			"integrity": "sha256-oCjkici5SBImn5UK/6TMqQVljjHsoW830y9gzCZ4N2I=",
+			"urls": [
+				"Packages/n/ncurses-libs-6.4-15.20240127.el10_1.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"ncurses-base"
+			]
+		},
+		{
+			"id": "openssl",
+			"name": "openssl",
+			"integrity": "sha256-GUA95RU9+CvrKhEj0vVo+JP+NcNm3GDGy+mfu/hqp4U=",
+			"urls": [
+				"Packages/o/openssl-3.5.5-5.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"coreutils-single",
+				"glibc",
+				"openssl-libs"
+			]
+		},
+		{
+			"id": "openssl-devel",
+			"name": "openssl-devel",
+			"integrity": "sha256-iODwZK19zzlRenO4316hQ6aK7RbFaFJm5+amCc92tlQ=",
+			"urls": [
+				"Packages/o/openssl-devel-3.5.5-5.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-appstream-x86_64",
+			"dependencies": [
+				"openssl-libs",
+				"pkgconf-pkg-config"
+			]
+		},
+		{
+			"id": "openssl-fips-provider",
+			"name": "openssl-fips-provider",
+			"integrity": "sha256-k2BK5sfvP8YZVlNyLq6od4Y/GLmNgEEtSq7Rw4F43mE=",
+			"urls": [
+				"Packages/o/openssl-fips-provider-3.0.7-11.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"openssl-fips-provider-so"
+			]
+		},
+		{
+			"id": "openssl-fips-provider-so",
+			"name": "openssl-fips-provider-so",
+			"integrity": "sha256-4PAcYaecnBKNwuq82Stm424ImIUCMwU3DpGI7PP1kc8=",
+			"urls": [
+				"Packages/o/openssl-fips-provider-so-3.0.7-11.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"coreutils-single",
+				"glibc"
+			]
+		},
+		{
+			"id": "openssl-libs",
+			"name": "openssl-libs",
+			"integrity": "sha256-OskspMxwmLeWg/JXh1PkFxBijj8CzTtISlIR8ONqifs=",
+			"urls": [
+				"Packages/o/openssl-libs-3.5.5-5.el10_2.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"ca-certificates",
+				"crypto-policies",
+				"glibc",
+				"openssl-fips-provider",
+				"zlib-ng-compat"
+			]
+		},
+		{
+			"id": "p11-kit",
+			"name": "p11-kit",
+			"integrity": "sha256-iAwSN6v990zMrczxVlFzRKN5xWWlwGCzA0g1xKCauMY=",
+			"urls": [
+				"Packages/p/p11-kit-0.26.2-1.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libffi",
+				"libtasn1"
+			]
+		},
+		{
+			"id": "p11-kit-trust",
+			"name": "p11-kit-trust",
+			"integrity": "sha256-WaHTemoDf+K2s4Yj8ueypHo6is5fUtGyz0x71fE5trY=",
+			"urls": [
+				"Packages/p/p11-kit-trust-0.26.2-1.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"alternatives",
+				"bash",
+				"glibc",
+				"libtasn1",
+				"p11-kit"
+			]
+		},
+		{
+			"id": "pam-libs",
+			"name": "pam-libs",
+			"integrity": "sha256-BHmPHuKIfiOBWG6xfzIvHJnGmTqnPDWCxaChvI0+cEw=",
+			"urls": [
+				"Packages/p/pam-libs-1.6.1-9.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"audit-libs",
+				"glibc",
+				"libeconf"
+			]
+		},
+		{
+			"id": "pcre2",
+			"name": "pcre2",
+			"integrity": "sha256-G0xSMlQXqEdGS4KVnk8atqGPWO9VcQDvxmX/6f3DHqY=",
+			"urls": [
+				"Packages/p/pcre2-10.44-1.el10.3.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"pcre2-syntax"
+			]
+		},
+		{
+			"id": "pcre2-syntax",
+			"name": "pcre2-syntax",
+			"integrity": "sha256-kO8/cUe9hhNNzZMYLmy30C2kLTE2Q7mocA5ULprX5fs=",
+			"urls": [
+				"Packages/p/pcre2-syntax-10.44-1.el10.3.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "pkgconf",
+			"name": "pkgconf",
+			"integrity": "sha256-Y8llZU39Jg11W9Nr2xnO0ANqpMHitk1ybJX62YstwEE=",
+			"urls": [
+				"Packages/p/pkgconf-2.1.0-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libpkgconf"
+			]
+		},
+		{
+			"id": "pkgconf-m4",
+			"name": "pkgconf-m4",
+			"integrity": "sha256-9qmcbmS5NYoLTbYOT7K1yFjrBIelBGkOgNG4S50ESZU=",
+			"urls": [
+				"Packages/p/pkgconf-m4-2.1.0-3.el10.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "pkgconf-pkg-config",
+			"name": "pkgconf-pkg-config",
+			"integrity": "sha256-uQoxYwZAypoFuoQgMsy+eueGMYu4CP+0nyUqzbFBkjU=",
+			"urls": [
+				"Packages/p/pkgconf-pkg-config-2.1.0-3.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"bash",
+				"pkgconf",
+				"pkgconf-m4"
+			]
+		},
+		{
+			"id": "readline",
+			"name": "readline",
+			"integrity": "sha256-xW42awDuqiSTLbBE3F/2FBfsT4la3TOCHp4GxK6iixk=",
+			"urls": [
+				"Packages/r/readline-8.2-11.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"ncurses-libs"
+			]
+		},
+		{
+			"id": "redhat-release",
+			"name": "redhat-release",
+			"integrity": "sha256-XUar8g8Boi/c/mpd6qW5NXFumW3u/SKwxv2zMNN/sao=",
+			"urls": [
+				"Packages/r/redhat-release-10.2-21.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": []
+		},
+		{
+			"id": "sed",
+			"name": "sed",
+			"integrity": "sha256-rgkEqb7bZ5I7jBwsa084fDCtfuFy87rcaPDs5rl/RxY=",
+			"urls": [
+				"Packages/s/sed-4.9-5.el10.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc",
+				"libacl",
+				"libselinux"
+			]
+		},
+		{
+			"id": "setup",
+			"name": "setup",
+			"integrity": "sha256-IG+uc2VkF4kfLHNXDBs1mQRN4xVZ5gYLYsxy51XFXuQ=",
+			"urls": [
+				"Packages/s/setup-2.14.5-7.el10.noarch.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"redhat-release"
+			]
+		},
+		{
+			"id": "xz-libs",
+			"name": "xz-libs",
+			"integrity": "sha256-fJW+w8QZVGJ057Og0YjHIy0BTPBd6UbbT6kvamc+7JE=",
+			"urls": [
+				"Packages/x/xz-libs-5.6.2-4.el10_0.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		},
+		{
+			"id": "zlib-ng-compat",
+			"name": "zlib-ng-compat",
+			"integrity": "sha256-S29TZXAb4cx0GiN8iLfzdHe6Mzsau8gnWWvEyJvwQEY=",
+			"urls": [
+				"Packages/z/zlib-ng-compat-2.2.3-3.el10_1.x86_64.rpm"
+			],
+			"repository": "ubi10-baseos-x86_64",
+			"dependencies": [
+				"glibc"
+			]
+		}
+	],
+	"targets": [
+		"crypto-policies",
+		"gcc",
+		"gcc-c++",
+		"glibc-devel",
+		"kernel-headers",
+		"libstdc++-devel",
+		"openssl",
+		"openssl-devel",
+		"openssl-fips-provider",
+		"zlib-devel"
+	]
+}

@@ -16,13 +16,19 @@ load(
     "hermetic_musl_toolchain",
     "host_go_tool",
 )
-load(":cc_toolchain.bzl", "fips_bootlin_cc_toolchain_config", "fips_glibc_cc_toolchain_config")
+load(
+    ":cc_toolchain.bzl",
+    "fips_bootlin_cc_toolchain_config",
+    "fips_glibc_cc_toolchain_config",
+    "fips_ubi_cc_toolchain_config",
+)
 load(":compiler_runtime.bzl", "libssp_nonshared")
 load(
     ":defs.bzl",
     "fips_bootlin_platform_toolchain",
     "fips_bootlin_runtime",
     "fips_glibc_platform_toolchain",
+    "fips_ubi_platform_toolchain",
 )
 load(":runtime_tool.bzl", "hermetic_runtime_tool")
 
@@ -432,6 +438,27 @@ filegroup(
     ],
 )
 
+filegroup(
+    name = "ubi10_cc_amd64_files",
+    srcs = [
+        ":compiler_runtime_amd64",
+        ":llvm_musl",
+        ":ubi10_cc_amd64_config",
+        "//fips:ubi10_amd64",
+    ],
+)
+
+filegroup(
+    name = "ubi10_cc_arm64_files",
+    srcs = [
+        ":compiler_runtime_arm64_cross",
+        ":llvm_musl",
+        ":ubi10_cc_arm64_config",
+        "//fips:ubi10_arm64",
+        "@fips_llvm_musl_arm64//:compiler_builtins",
+    ],
+)
+
 fips_bootlin_cc_toolchain_config(
     name = "foreign_cc_amd64_config",
     abi_libc_version = "musl-1.2.5",
@@ -518,6 +545,52 @@ fips_glibc_cc_toolchain_config(
     strip = ":llvm_musl_arm64_native/bin/strip",
     sysroot_marker = "@fips_glibc_2_35_arm64//:aarch64-buildroot-linux-gnu/sysroot/usr/include/stdio.h",
     target_triplet = "aarch64-buildroot-linux-gnu",
+)
+
+fips_ubi_cc_toolchain_config(
+    name = "ubi10_cc_amd64_config",
+    abi_libc_version = "glibc-2.39-ubi10",
+    abi_version = "gnu",
+    ar = ":llvm_musl/bin/ar",
+    arch = "x86_64",
+    clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_amd64//:compiler_builtins",
+    dynamic_loader = "lib64/ld-linux-x86-64.so.2",
+    gcc_version = "14",
+    ld = ":llvm_musl/bin/ld.lld",
+    libc = "glibc-ubi10",
+    nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
+    objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_amd64",
+    static_compiler_runtime = False,
+    strip = ":llvm_musl/bin/strip",
+    sysroot = "//fips:ubi10_amd64",
+    target_triplet = "x86_64-redhat-linux",
+)
+
+fips_ubi_cc_toolchain_config(
+    name = "ubi10_cc_arm64_config",
+    abi_libc_version = "glibc-2.39-ubi10",
+    abi_version = "gnu",
+    ar = ":llvm_musl/bin/ar",
+    arch = "aarch64",
+    clang = ":llvm_musl/bin/clang",
+    compiler_runtime = "@fips_llvm_musl_arm64//:compiler_builtins",
+    dynamic_loader = "lib/ld-linux-aarch64.so.1",
+    gcc_version = "14",
+    ld = ":llvm_musl/bin/ld.lld",
+    libc = "glibc-ubi10",
+    nm = ":llvm_musl/bin/nm",
+    objcopy = ":llvm_musl/bin/objcopy",
+    objdump = ":llvm_musl/bin/objdump",
+    resource_marker = "@fips_llvm_musl_amd64//:usr/bin/clang",
+    ssp_runtime = ":compiler_runtime_arm64_cross",
+    static_compiler_runtime = False,
+    strip = ":llvm_musl/bin/strip",
+    sysroot = "//fips:ubi10_arm64",
+    target_triplet = "aarch64-redhat-linux",
 )
 
 fips_bootlin_cc_toolchain_config(
@@ -632,6 +705,26 @@ cc_toolchain(
     ]
 ]
 
+[
+    cc_toolchain(
+        name = "ubi10_cc_%s_impl" % arch,
+        all_files = ":ubi10_cc_%s_files" % arch,
+        ar_files = ":ubi10_cc_%s_files" % arch,
+        as_files = ":ubi10_cc_%s_files" % arch,
+        compiler_files = ":ubi10_cc_%s_files" % arch,
+        dwp_files = ":ubi10_cc_%s_files" % arch,
+        linker_files = ":ubi10_cc_%s_files" % arch,
+        objcopy_files = ":ubi10_cc_%s_files" % arch,
+        strip_files = ":ubi10_cc_%s_files" % arch,
+        supports_param_files = 1,
+        toolchain_config = ":ubi10_cc_%s_config" % arch,
+    )
+    for arch in [
+        "amd64",
+        "arm64",
+    ]
+]
+
 toolchain(
     name = "foreign_cc_amd64_toolchain",
     exec_compatible_with = [
@@ -719,6 +812,36 @@ toolchain(
         "@platforms//os:linux",
     ],
     toolchain = ":glibc_cc_arm64_native_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "ubi10_cc_amd64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:ubi_10_glibc",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":ubi10_cc_amd64_impl",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "ubi10_cc_arm64_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:ubi_10_glibc",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":ubi10_cc_arm64_impl",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
@@ -1214,6 +1337,66 @@ fips_glibc_platform_toolchain(
     target_triplet = "aarch64-buildroot-linux-gnu",
 )
 
+fips_ubi_platform_toolchain(
+    name = "linux_amd64_ubi10_impl",
+    arch = "amd64",
+    clang_tools = ":llvm_musl",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    libc_license_path = "usr/share/licenses/glibc/COPYING.LIB",
+    loader = "ld-linux-x86-64.so.2",
+    loader_path = "usr/lib64/ld-linux-x86-64.so.2",
+    nm = ":llvm_musl/bin/nm",
+    openssl_target = "linux-x86_64",
+    qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
+    ranlib = ":llvm_musl/bin/ranlib",
+    readelf = ":llvm_musl/bin/readelf",
+    runtime_libraries = {
+        "libc.so.6": "usr/lib64/libc.so.6",
+        "libcrypt.so.2": "usr/lib64/libcrypt.so.2",
+        "libcrypto.so.3": "usr/lib64/libcrypto.so.3",
+        "libdl.so.2": "usr/lib64/libdl.so.2",
+        "libgcc_s.so.1": "lib64/libgcc_s.so.1",
+        "libm.so.6": "usr/lib64/libm.so.6",
+        "libpthread.so.0": "usr/lib64/libpthread.so.0",
+        "libresolv.so.2": "usr/lib64/libresolv.so.2",
+        "librt.so.1": "usr/lib64/librt.so.1",
+        "libstdc++.so.6": "usr/lib64/libstdc++.so.6",
+        "libssl.so.3": "usr/lib64/libssl.so.3",
+        "libz.so.1": "usr/lib64/libz.so.1",
+    },
+    sysroot = "//fips:ubi10_amd64",
+)
+
+fips_ubi_platform_toolchain(
+    name = "linux_arm64_ubi10_cross_impl",
+    arch = "arm64",
+    clang_tools = ":llvm_musl",
+    go = "@fips_go_amd64//sysroot:sysroot",
+    libc_license_path = "usr/share/licenses/glibc/COPYING.LIB",
+    loader = "ld-linux-aarch64.so.1",
+    loader_path = "usr/lib64/ld-linux-aarch64.so.1",
+    nm = ":llvm_musl/bin/nm",
+    openssl_target = "linux-aarch64",
+    qemu_aarch64 = "@fips_qemu_aarch64//:usr/bin/qemu-aarch64",
+    ranlib = ":llvm_musl/bin/ranlib",
+    readelf = ":llvm_musl/bin/readelf",
+    runtime_libraries = {
+        "libc.so.6": "usr/lib64/libc.so.6",
+        "libcrypt.so.2": "usr/lib64/libcrypt.so.2",
+        "libcrypto.so.3": "usr/lib64/libcrypto.so.3",
+        "libdl.so.2": "usr/lib64/libdl.so.2",
+        "libgcc_s.so.1": "lib64/libgcc_s.so.1",
+        "libm.so.6": "usr/lib64/libm.so.6",
+        "libpthread.so.0": "usr/lib64/libpthread.so.0",
+        "libresolv.so.2": "usr/lib64/libresolv.so.2",
+        "librt.so.1": "usr/lib64/librt.so.1",
+        "libstdc++.so.6": "usr/lib64/libstdc++.so.6",
+        "libssl.so.3": "usr/lib64/libssl.so.3",
+        "libz.so.1": "usr/lib64/libz.so.1",
+    },
+    sysroot = "//fips:ubi10_arm64",
+)
+
 toolchain(
     name = "linux_amd64_toolchain",
     exec_compatible_with = [
@@ -1304,5 +1487,37 @@ toolchain(
         "@platforms//os:linux",
     ],
     toolchain = ":linux_arm64_glibc_native_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_amd64_ubi10_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:openssl_fips_ubi10_amd64",
+        "//fips/platforms:ubi_10_glibc",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_amd64_ubi10_impl",
+    toolchain_type = "//fips:toolchain_type",
+)
+
+toolchain(
+    name = "linux_arm64_ubi10_cross_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "//fips/platforms:openssl_fips_ubi10_arm64",
+        "//fips/platforms:ubi_10_glibc",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":linux_arm64_ubi10_cross_impl",
     toolchain_type = "//fips:toolchain_type",
 )

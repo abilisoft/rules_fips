@@ -12,6 +12,11 @@ constraint_value(
     constraint_setting = ":libc_abi",
 )
 
+constraint_value(
+    name = "ubi_10_glibc",
+    constraint_setting = ":libc_abi",
+)
+
 constraint_setting(
     name = "rust_crt",
     default_constraint_value = ":rust_static_crt",
@@ -46,6 +51,16 @@ constraint_value(
 
 constraint_value(
     name = "openssl_fips_glibc_arm64",
+    constraint_setting = ":crypto_runtime_abi",
+)
+
+constraint_value(
+    name = "openssl_fips_ubi10_amd64",
+    constraint_setting = ":crypto_runtime_abi",
+)
+
+constraint_value(
+    name = "openssl_fips_ubi10_arm64",
     constraint_setting = ":crypto_runtime_abi",
 )
 
@@ -126,6 +141,26 @@ platform(
     constraint_values = [
         ":glibc_2_35",
         ":openssl_fips_glibc_arm64",
+        "@platforms//cpu:arm64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "linux_amd64_ubi10",
+    constraint_values = [
+        ":openssl_fips_ubi10_amd64",
+        ":ubi_10_glibc",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "linux_arm64_ubi10",
+    constraint_values = [
+        ":openssl_fips_ubi10_arm64",
+        ":ubi_10_glibc",
         "@platforms//cpu:arm64",
         "@platforms//os:linux",
     ],

@@ -5,10 +5,10 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/abilisoft/rules_fips/badge)](https://securityscorecards.dev/viewer/?uri=github.com/abilisoft/rules_fips)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Hermetic Bazel rules for building a normalized OpenSSL FIPS crypto SDK. The SDK
-contains static archives and headers for consumers, plus the provider, config,
-selected libc runtime, and shell-free activation/launch tools needed at
-deployment.
+Hermetic Bazel rules for producing a normalized OpenSSL FIPS crypto SDK. A
+profile can build immutable upstream sources or import a checksum-locked UBI
+RPM tree. Both expose declared headers, libraries, provider configuration,
+loader/runtime files, and shell-free launch tools.
 
 > [!IMPORTANT]
 > The project records build and provider evidence. It does not certify,
@@ -21,7 +21,7 @@ deployment.
 
 ## What it produces
 
-`openssl_fips_sdk` exposes a target-specific SDK directory and an explicit
+`openssl_fips_sdk` builds a target-specific SDK directory and an explicit
 deployment payload. A consumer receives:
 
 - `include/`, `lib/libcrypto.a`, and `lib/libssl.a` for its build;
@@ -33,6 +33,13 @@ deployment payload. A consumer receives:
 - opaque argument/environment templates. Consumers do not branch on backend
   identity.
 
+`fips_ubi_crypto_sdk` is an additive distribution profile. It imports the
+locked UBI 10 package set for AMD64 or Arm64 and exposes the installed headers,
+`libcrypto.so`, `libssl.so`, loader, FIPS provider, crypto-policy
+configuration, and dependent runtime libraries. The distribution provider is
+already configured, so this profile never invents or runs a `fipsinstall`
+step. The source-built static-core profile above remains available unchanged.
+
 The current tested catalog selects:
 
 | Component | Selection |
@@ -41,6 +48,7 @@ The current tested catalog selects:
 | OpenSSL FIPS provider | 3.1.2, referencing CMVP certificate #4985 |
 | Targets | Linux AMD64 and Linux Arm64 |
 | Target C libraries | musl 1.2.5 and glibc 2.35 ABI baseline |
+| Distribution profile | Checksum-locked UBI 10 glibc 2.39 SDK |
 | Build compiler | Clang/LLD 22.1.8 |
 | Arm64 validation | static QEMU 11.0.2, build-time only |
 
@@ -67,6 +75,18 @@ bazel build --config=local --config=linux_arm64 \
 Select `linux_amd64_glibc` or `linux_arm64_glibc` for the glibc 2.35 ABI
 baseline. That baseline is compatible with Ubuntu 22.04 and newer without
 making Ubuntu—or any distribution—part of the target contract.
+
+Build the optional UBI distribution SDK directly:
+
+```console
+bazel build --config=local \
+  --platforms=//fips/platforms:linux_amd64_ubi10 \
+  //fips:ubi10_openssl_fips_sdk
+```
+
+The generic musl and glibc profiles are distribution-independent. Selecting
+the UBI profile is an explicit request for that package ABI and provider
+policy; it is never selected as a fallback.
 
 OpenSSL 3 loads its FIPS provider dynamically. `fully_static` is therefore
 false even though the consumer can link the OpenSSL core statically. The SDK
@@ -99,6 +119,13 @@ bazel test --config=local --config=linux_amd64 \
 State preparation runs the SDK's declared `fipsinstall` command with action
 networking blocked. The test then loads the FIPS provider through the same
 runtime contract consumers receive.
+
+For the UBI profile, use
+`//fips:ubi10_openssl_fips_sdk_openssl_test` on AMD64. The corresponding
+`_openssl_execution_test` target validates the Arm64 payload from an AMD64
+worker through the declared execution launcher and pinned QEMU. QEMU is an
+explicit test instrument only; consumers and OTP cross-builds do not receive
+it as a runtime dependency.
 
 The catalog is the easy path. A root module may select any tested pair:
 
@@ -141,8 +168,9 @@ bazel build --config=local //fips:source_pins
 
 ## Consumer boundary
 
-The returned `otp_crypto_sdk` dictionary is a convenience adapter for
-`rules_elixir_mix`; it is data, not a shared provider dependency. rules_fips
+The `otp_crypto_sdk` dictionary returned by either SDK macro is a convenience
+adapter for `rules_elixir_mix`; it is data, not a shared provider dependency.
+rules_fips
 owns OpenSSL source, build identity, certificate metadata, provider activation,
 and SDK runtime payload. The consumer owns its VM build, FIPS startup flags,
 release configuration, and application-level runtime tests.
@@ -267,9 +295,9 @@ so an incomplete SDK fails instead of consulting the worker.
 
 ## Hermeticity and portability
 
-Sources, compilers, sysroots, build tools, and licenses are fetched by exact
-URL and SHA-256. Build actions use declared inputs; the default BuildBuddy
-execution image is digest-pinned and has action networking disabled.
+Sources, RPMs, compilers, sysroots, build tools, and licenses are fetched by
+exact URL and integrity digest. Build actions use declared inputs; the default
+BuildBuddy execution image is digest-pinned and has action networking disabled.
 Starlark invokes small statically compiled drivers for the filesystem/process
 operations Bazel cannot express. The driver starts upstream OpenSSL Configure,
 declared Perl, declared Make, and the declared shell directly; it never emits

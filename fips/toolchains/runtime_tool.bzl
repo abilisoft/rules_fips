@@ -206,3 +206,15 @@ hermetic_target_runtime_test = rule(
     doc = "Runs a target-configured test through its declared static or dynamic runtime closure.",
     test = True,
 )
+
+def _execution_launcher_runtime_attrs():
+    attrs = _runtime_tool_attrs("target")
+    attrs["launcher"] = attr.label(mandatory = True, executable = True, cfg = "exec")
+    return attrs
+
+hermetic_execution_launcher_runtime_test = rule(
+    implementation = _hermetic_target_runtime_test_impl,
+    attrs = _execution_launcher_runtime_attrs(),
+    doc = "Runs a target program through an execution-configured launcher for explicit cross-architecture tests.",
+    test = True,
+)

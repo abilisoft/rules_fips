@@ -12,6 +12,8 @@ on the selected Bazel execution platform.
 | `linux_arm64` | Linux AArch64 + musl 1.2.5 | none |
 | `linux_amd64_glibc` | Linux x86-64 + glibc 2.35 ABI | none |
 | `linux_arm64_glibc` | Linux AArch64 + glibc 2.35 ABI | none |
+| `linux_amd64_ubi10` | Linux x86-64 + UBI 10 glibc 2.39 ABI and crypto policy | none |
+| `linux_arm64_ubi10` | Linux AArch64 + UBI 10 glibc 2.39 ABI and crypto policy | none |
 
 The deployment payload carries its OpenSSL FIPS provider plus the selected
 loader and runtime libraries. Native tools invoke OpenSSL and declared consumer
@@ -20,6 +22,12 @@ for a host OpenSSL installation, provider configuration, loader, or libc.
 Loader and runtime-library runfiles are content-copied into action-owned Bazel
 outputs before launch; external-repository symlinks are never used as the
 execution contract.
+
+The UBI profiles are deliberately distribution-specific inputs. They remain
+hermetic because every RPM URL and integrity value is locked and the extracted
+tree is a declared Bazel artifact—not because UBI files are discovered on the
+worker. The generic glibc 2.35 profiles remain distribution-independent and
+retain the Ubuntu 22.04-compatible ABI baseline.
 
 Relocation works only while the SDK runtime layout remains intact. A consumer
 may re-root the files, but it must preserve the normalized destinations and
@@ -40,7 +48,7 @@ Portability still has hard edges:
 
 Repository and build actions use declared, immutable inputs:
 
-- source and binary archives use exact HTTPS URLs and SHA-256;
+- source, binary, and RPM archives use exact HTTPS URLs and integrity digests;
 - pure-Starlark repository rules reject dangling or escaping archive symlinks
   before any extracted tree becomes an action input;
 - custom source URLs also require SHA-256;
@@ -189,3 +197,7 @@ being built against a distribution image. Both profiles package their loader
 and runtime libraries. OpenSSL 3 still loads the FIPS provider as a module, so
 the portable unit is the declared SDK payload rather than one static binary.
 Neither libc choice changes the compliance boundary.
+
+The UBI profile is a third, explicit runtime contract rather than a new
+default. It models the distribution's glibc and OpenSSL policy together and
+does not affect the source-built musl or generic-glibc outputs.

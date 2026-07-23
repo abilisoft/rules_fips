@@ -1,0 +1,19 @@
+repositories:
+  - arch: x86_64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/x86_64/baseos/os
+    name: ubi10-baseos-x86_64
+  - arch: x86_64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/x86_64/appstream/os
+    name: ubi10-appstream-x86_64
+  - arch: x86_64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/x86_64/codeready-builder/os
+    name: ubi10-codeready-builder-x86_64
+  - arch: aarch64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/aarch64/baseos/os
+    name: ubi10-baseos-aarch64
+  - arch: aarch64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/aarch64/appstream/os
+    name: ubi10-appstream-aarch64
+  - arch: aarch64
+    baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/aarch64/codeready-builder/os
+    name: ubi10-codeready-builder-aarch64

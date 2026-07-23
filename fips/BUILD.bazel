@@ -1,4 +1,7 @@
+load(":crypto_sdk.bzl", "fips_ubi_crypto_sdk")
 load(":metadata.bzl", "source_pin_manifest")
+load(":ubi.bzl", "ubi_rpm_tree")
+load(":ubi_repositories.bzl", "ubi_rpm_labels")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -15,5 +18,88 @@ exports_files([
     "repositories.bzl",
     "rust_adapter.bzl",
     "toolbox.bzl",
+    "ubi.bzl",
+    "ubi_repositories.bzl",
+    "ubi10_amd64.lock.json",
+    "ubi10_arm64.lock.json",
+    "ubi10_repositories.yaml",
     "versions.bzl",
 ])
+
+_UBI10_AMD64_PACKAGES = [
+    "crypto-policies",
+    "gcc",
+    "glibc",
+    "glibc-devel",
+    "kernel-headers",
+    "libgcc",
+    "libgomp",
+    "libstdc++",
+    "libstdc++-devel",
+    "libxcrypt",
+    "libxcrypt-devel",
+    "openssl",
+    "openssl-devel",
+    "openssl-fips-provider",
+    "openssl-fips-provider-so",
+    "openssl-libs",
+    "zlib-ng-compat",
+]
+
+_UBI10_ARM64_PACKAGES = _UBI10_AMD64_PACKAGES + [
+    "libasan",
+    "libatomic",
+    "libubsan",
+]
+
+_UBI10_EXCLUDED_PATHS = [
+    "./etc/pki/tls/fips_local.cnf",
+    "./usr/lib/gcc/*/14/32",
+]
+
+ubi_rpm_tree(
+    name = "ubi10_amd64",
+    arch = "amd64",
+    exclude_paths = _UBI10_EXCLUDED_PATHS,
+    rpms = ubi_rpm_labels("ubi10_amd64", _UBI10_AMD64_PACKAGES),
+    symlinks = {
+        "/lib64/ld-linux-x86-64.so.2": "../usr/lib64/ld-linux-x86-64.so.2",
+        "/lib64/libc.so.6": "../usr/lib64/libc.so.6",
+        "/lib64/libdl.so.2": "../usr/lib64/libdl.so.2",
+        "/lib64/libm.so.6": "../usr/lib64/libm.so.6",
+        "/lib64/libmvec.so.1": "../usr/lib64/libmvec.so.1",
+        "/lib64/libpthread.so.0": "../usr/lib64/libpthread.so.0",
+        "/lib64/libresolv.so.2": "../usr/lib64/libresolv.so.2",
+        "/lib64/librt.so.1": "../usr/lib64/librt.so.1",
+        "/usr/lib/gcc/x86_64-redhat-linux/14/libstdc++.so": "../../../../lib64/libstdc++.so.6",
+        "/usr/lib64/libgcc_s.so.1": "../../lib64/libgcc_s.so.1",
+    },
+)
+
+ubi_rpm_tree(
+    name = "ubi10_arm64",
+    arch = "arm64",
+    exclude_paths = _UBI10_EXCLUDED_PATHS,
+    rpms = ubi_rpm_labels("ubi10_arm64", _UBI10_ARM64_PACKAGES),
+    symlinks = {
+        "/lib/ld-linux-aarch64.so.1": "../usr/lib/ld-linux-aarch64.so.1",
+        "/lib64/libc.so.6": "../usr/lib64/libc.so.6",
+        "/lib64/libdl.so.2": "../usr/lib64/libdl.so.2",
+        "/lib64/libm.so.6": "../usr/lib64/libm.so.6",
+        "/lib64/libmvec.so.1": "../usr/lib64/libmvec.so.1",
+        "/lib64/libpthread.so.0": "../usr/lib64/libpthread.so.0",
+        "/lib64/libresolv.so.2": "../usr/lib64/libresolv.so.2",
+        "/lib64/librt.so.1": "../usr/lib64/librt.so.1",
+        "/usr/lib/gcc/aarch64-redhat-linux/14/libstdc++.so": "../../../../lib64/libstdc++.so.6",
+        "/usr/lib64/ld-linux-aarch64.so.1": "../lib/ld-linux-aarch64.so.1",
+        "/usr/lib64/libgcc_s.so.1": "../../lib64/libgcc_s.so.1",
+    },
+)
+
+fips_ubi_crypto_sdk(
+    name = "ubi10_openssl_fips_sdk",
+    sysroot = select({
+        "//fips/platforms:target_arm64": ":ubi10_arm64",
+        "//conditions:default": ":ubi10_amd64",
+    }),
+)

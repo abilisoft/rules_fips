@@ -4,6 +4,7 @@ load(
     "//fips:providers.bzl",
     "FipsPlatformInfo",
     "HermeticRuntimeInfo",
+    "UbiRpmTreeInfo",
 )
 
 _RUNTIME_STAGER = Label("//fips/private:fips_artifact_validator")
@@ -141,6 +142,69 @@ def _fips_bootlin_runtime_impl(ctx):
         ),
     ]
 
+def _fips_ubi_platform_toolchain_impl(ctx):
+    clang = _clang_values(ctx)
+    go_bin, go_files = _archive_tool(
+        ctx.attr.go,
+        "pinned Go archive",
+        "/bin/go",
+    )
+    sysroot = ctx.attr.sysroot[UbiRpmTreeInfo]
+    entries = [
+        struct(destination = "ld-runtime.so.1", source = ctx.attr.loader_path),
+        struct(destination = ctx.attr.loader, source = ctx.attr.loader_path),
+    ] + [
+        struct(destination = destination, source = source)
+        for destination, source in sorted(ctx.attr.runtime_libraries.items())
+    ]
+    staged = []
+    arguments = ["stage-runtime"]
+    for entry in entries:
+        output = ctx.actions.declare_file(ctx.label.name + "_runtime/" + entry.destination)
+        arguments.extend([sysroot.root + "/" + entry.source, output.path])
+        staged.append(struct(destination = entry.destination, file = output))
+    libc_license = ctx.actions.declare_file(ctx.label.name + "_runtime/licenses/glibc-LICENSE.txt")
+    arguments.extend([sysroot.root + "/" + ctx.attr.libc_license_path, libc_license.path])
+    ctx.actions.run(
+        arguments = arguments,
+        env = {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "SOURCE_DATE_EPOCH": "0",
+        },
+        executable = ctx.executable._runtime_stager,
+        execution_requirements = {"block-network": "1"},
+        inputs = sysroot.files,
+        mnemonic = "UbiRuntimeStage",
+        outputs = [entry.file for entry in staged] + [libc_license],
+        progress_message = "Staging declared UBI 10 {} runtime".format(ctx.attr.arch),
+    )
+    qemu_aarch64_file = ctx.file.qemu_aarch64 if ctx.attr.qemu_aarch64 else None
+    qemu_aarch64_files = ctx.attr.qemu_aarch64[DefaultInfo].files if ctx.attr.qemu_aarch64 else depset()
+    runtime_files = depset([entry.file for entry in staged])
+    info = FipsPlatformInfo(
+        arch = ctx.attr.arch,
+        clang_files = clang.files,
+        go_bin = go_bin,
+        go_files = go_files,
+        libc = "glibc",
+        libc_license_file = libc_license,
+        libc_runtime_entries = staged,
+        libc_runtime_files = runtime_files,
+        libc_version = "2.39",
+        llvm_nm = clang.llvm_nm,
+        llvm_ranlib = clang.llvm_ranlib,
+        llvm_readelf = clang.llvm_readelf,
+        openssl_target = ctx.attr.openssl_target,
+        qemu_aarch64_file = qemu_aarch64_file,
+        qemu_aarch64_files = qemu_aarch64_files,
+        sysroot_files = sysroot.files,
+    )
+    return [
+        info,
+        platform_common.ToolchainInfo(fips = info),
+    ]
+
 fips_bootlin_runtime = rule(
     implementation = _fips_bootlin_runtime_impl,
     attrs = {
@@ -186,6 +250,31 @@ fips_bootlin_platform_toolchain = rule(
         ),
     },
     doc = "Describes one checksum-pinned Linux libc target supported by rules_fips.",
+)
+
+fips_ubi_platform_toolchain = rule(
+    implementation = _fips_ubi_platform_toolchain_impl,
+    attrs = {
+        "arch": attr.string(mandatory = True, values = ["amd64", "arm64"]),
+        "clang_tools": attr.label(mandatory = True),
+        "go": attr.label(mandatory = True),
+        "libc_license_path": attr.string(mandatory = True),
+        "loader": attr.string(mandatory = True),
+        "loader_path": attr.string(mandatory = True),
+        "nm": attr.label(allow_single_file = True, mandatory = True),
+        "openssl_target": attr.string(mandatory = True),
+        "qemu_aarch64": attr.label(allow_single_file = True),
+        "ranlib": attr.label(allow_single_file = True, mandatory = True),
+        "readelf": attr.label(allow_single_file = True, mandatory = True),
+        "runtime_libraries": attr.string_dict(),
+        "sysroot": attr.label(mandatory = True, providers = [UbiRpmTreeInfo]),
+        "_runtime_stager": attr.label(
+            default = _RUNTIME_STAGER,
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+    doc = "Describes a checksum-pinned UBI 10 target sysroot and runtime closure.",
 )
 
 fips_glibc_platform_toolchain = fips_bootlin_platform_toolchain
